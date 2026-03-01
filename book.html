@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reading Studio - Book View</title>
+    <link rel="stylesheet" href="./book.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>Book View</h1>
+      <p>文章を連続で読むページ</p>
+    </header>
+
+    <main class="layout">
+      <aside class="panel">
+        <h2>作品</h2>
+        <select id="workSelect"></select>
+
+        <h2>章・セクション</h2>
+        <select id="sectionSelect"></select>
+        <button id="openSectionInfo">章解説</button>
+
+        <h2>本モード</h2>
+        <button id="backToStudio">スタジオへ戻る</button>
+        <button id="togglePageMode">表示: 一括</button>
+        <button id="prevPage">前ページ</button>
+        <button id="nextPage">次ページ</button>
+
+        <button id="toggleDetails">詳細: ON</button>
+        <p id="statusText" class="status-text">読み込み中...</p>
+      </aside>
+
+      <section class="panel">
+        <p id="sectionInfoText" class="status-text"></p>
+        <ol id="bookList" class="book-list"></ol>
+      </section>
+    </main>
+
+    <dialog id="sectionInfoDialog">
+      <h3 id="sectionInfoDialogTitle">章解説</h3>
+      <p id="sectionInfoDialogBody"></p>
+      <button id="closeSectionInfo">閉じる</button>
+    </dialog>
+
+    <script src="./book.js"></script>
+  </body>
+</html>

@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reading Studio</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-main">
+        <div>
+          <h1>Reading Studio</h1>
+          <p>作品横断で語学読解を整理するノート</p>
+        </div>
+        <div class="topbar-tools">
+          <button id="toggleEditMode">編集モード: OFF</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="panel">
+        <h2>作品</h2>
+        <select id="workSelect"></select>
+
+        <h2>章・セクション</h2>
+        <select id="sectionSelect"></select>
+
+        <h2>文</h2>
+        <ol id="sentenceList" class="sentence-list"></ol>
+
+        <h2>検索（作品横断）</h2>
+        <input id="searchInput" type="text" placeholder="本文・訳・備考で検索" />
+        <div class="sentence-head">
+          <div class="actions"><button id="runSearchBtn">検索</button></div>
+          <div class="actions"><button id="clearSearchBtn">クリア</button></div>
+        </div>
+        <p id="searchStatus" class="status-text">未検索</p>
+        <ol id="searchResults" class="sentence-list search-results"></ol>
+
+        <div class="edit-only">
+          <h2>作品管理</h2>
+          <label class="field-label" for="workIdInput">作品ID</label>
+          <input id="workIdInput" type="text" placeholder="例: lupin" />
+          <label class="field-label" for="workTitleInput">作品名</label>
+          <input id="workTitleInput" type="text" />
+          <label class="field-label" for="workLanguageInput">原文言語</label>
+          <input id="workLanguageInput" type="text" placeholder="例: フランス語" />
+          <div class="sentence-head">
+            <div class="actions"><button id="saveWorkBtn">作品 保存/更新</button></div>
+            <div class="actions"><button id="deleteWorkBtn">作品 削除</button></div>
+          </div>
+          <p id="workStatus" class="status-text">未編集</p>
+
+          <h2>章管理</h2>
+          <label class="field-label" for="sectionIdInput">章ID</label>
+          <input id="sectionIdInput" type="text" placeholder="例: ch1" />
+          <label class="field-label" for="sectionTitleInput">章タイトル</label>
+          <input id="sectionTitleInput" type="text" placeholder="例: 1 Le numero 514 - serie 23" />
+          <label class="field-label" for="sectionDescriptionInput">章解説</label>
+          <textarea id="sectionDescriptionInput" rows="3" placeholder="章の背景やメモ"></textarea>
+          <div class="sentence-head">
+            <div class="actions"><button id="saveSectionBtn">章 保存/更新</button></div>
+            <div class="actions"><button id="deleteSectionBtn">章 削除</button></div>
+          </div>
+          <p id="sectionStatus" class="status-text">未編集</p>
+
+          <h2>CSV取込</h2>
+          <label class="field-label" for="sentencesCsvInput">1) sentences.csv</label>
+          <input id="sentencesCsvInput" type="file" accept=".csv,text/csv" />
+          <label class="field-label" for="dictionaryCsvInput">2) dictionary.csv（任意）</label>
+          <input id="dictionaryCsvInput" type="file" accept=".csv,text/csv" />
+          <button id="importCsvBtn">CSVを取り込む</button>
+          <p id="importStatus" class="status-text">未取り込み</p>
+
+          <h2>かんたん投稿</h2>
+          <label class="field-label" for="quickSource">本文（必須）</label>
+          <textarea id="quickSource" rows="4" placeholder="本文を貼り付け"></textarea>
+          <label class="field-label" for="quickEnglish">英語（任意）</label>
+          <textarea id="quickEnglish" rows="2"></textarea>
+          <label class="field-label" for="quickJapanese">日本語（任意）</label>
+          <textarea id="quickJapanese" rows="2"></textarea>
+          <label class="field-label" for="quickBuildSteps">最小構成（1行=1ステップ）</label>
+          <textarea id="quickBuildSteps" rows="3" placeholder="空なら本文1行で作成"></textarea>
+          <label class="field-label" for="quickNotes">備考（1行=1項目）</label>
+          <textarea id="quickNotes" rows="3"></textarea>
+          <label class="field-label" for="quickTokens">tokens（|区切り、省略可）</label>
+          <input id="quickTokens" type="text" placeholder="例: Maurice|Leblanc|est|..." />
+          <label class="field-label" for="quickInsertMode">追加位置</label>
+          <select id="quickInsertMode">
+            <option value="after-current">今見ている文の次に追加</option>
+            <option value="end">このセクションの末尾に追加</option>
+          </select>
+          <button id="addQuickSentence">このセクションに追加</button>
+          <p id="quickStatus" class="status-text">未投稿</p>
+        </div>
+
+        <h2>表示</h2>
+        <button id="toggleGenderColor">性カラー: OFF</button>
+      </aside>
+      <div id="paneSplitter" class="pane-splitter" aria-label="ペイン幅調整" title="ドラッグで幅調整"></div>
+
+      <section class="panel main-panel">
+        <div class="sentence-head">
+          <h2 id="sentenceTitle">文を選択してください</h2>
+          <div class="actions">
+            <button id="prevSentence">前の文</button>
+          </div>
+          <div class="actions">
+            <button id="nextSentence">次の文</button>
+          </div>
+          <div class="actions">
+            <button id="openBookView">本ビュー</button>
+          </div>
+          <div class="actions">
+            <button id="toggleReadState">既読: OFF</button>
+          </div>
+          <div class="actions edit-only-inline">
+            <button id="deleteSentence">この文を削除</button>
+          </div>
+          <div class="actions">
+            <button id="toggleHints">語彙ヒント: ON</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="sentence-head">
+            <h3>章情報</h3>
+            <div class="actions"><button id="openSectionInfo">章解説を見る</button></div>
+          </div>
+          <p id="sectionInfoText" class="status-text"></p>
+          <p id="progressInfoText" class="status-text"></p>
+        </div>
+
+        <div class="card">
+          <h3 id="sourceLabel">本文（ホバーで訳）</h3>
+          <p id="sourceText" class="source-text"></p>
+        </div>
+
+        <div class="split-grid">
+          <div class="card">
+            <h3>英語</h3>
+            <p id="englishText"></p>
+          </div>
+          <div class="card">
+            <h3>日本語</h3>
+            <p id="japaneseText"></p>
+          </div>
+        </div>
+
+        <div class="card edit-only">
+          <h3>文章本体 編集フォーム（現在の文）</h3>
+          <label class="field-label" for="sentenceLabelInput">ラベル</label>
+          <input id="sentenceLabelInput" type="text" />
+          <label class="field-label" for="sentenceSourceInput">本文</label>
+          <textarea id="sentenceSourceInput" rows="3"></textarea>
+          <label class="field-label" for="sentenceEnglishInput">英語</label>
+          <textarea id="sentenceEnglishInput" rows="2"></textarea>
+          <label class="field-label" for="sentenceJapaneseInput">日本語</label>
+          <textarea id="sentenceJapaneseInput" rows="2"></textarea>
+          <label class="field-label" for="sentenceTokensInput">tokens（|区切り）</label>
+          <input id="sentenceTokensInput" type="text" />
+          <label class="field-label" for="sentenceBuildStepsInput">最小構成（1行=1ステップ）</label>
+          <textarea id="sentenceBuildStepsInput" rows="3"></textarea>
+          <label class="field-label" for="sentenceNotesInput">備考（1行=1項目）</label>
+          <textarea id="sentenceNotesInput" rows="3"></textarea>
+          <button id="saveSentenceEdit">編集を保存</button>
+          <p id="sentenceEditStatus" class="status-text">未編集</p>
+        </div>
+
+        <div class="card">
+          <h3>最小構成からの積み上げ</h3>
+          <ol id="buildSteps" class="build-steps"></ol>
+        </div>
+
+        <div class="card">
+          <h3>備考（文法・背景・表現）</h3>
+          <ul id="notes" class="notes"></ul>
+        </div>
+
+        <div class="card">
+          <div class="sentence-head">
+            <h3 id="vocabTitle">単語表</h3>
+            <div class="actions">
+              <button id="toggleVocab">単語表: ON</button>
+            </div>
+          </div>
+          <div id="vocabWrap">
+            <table class="vocab-table">
+              <thead>
+                <tr>
+                  <th id="colSource">原文</th>
+                  <th>English</th>
+                  <th>日本語</th>
+                  <th>性</th>
+                  <th>苦手</th>
+                  <th>文法</th>
+                  <th>語源/メモ</th>
+                </tr>
+              </thead>
+              <tbody id="vocabTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" id="grammarSection">
+          <h3>文法表</h3>
+          <ul id="grammarList" class="notes"></ul>
+        </div>
+
+        <div class="card edit-only">
+          <h3>単語表 追加/編集フォーム（現在の原文言語）</h3>
+          <div class="dict-grid">
+            <label class="field-label" for="dictToken">単語</label>
+            <input id="dictToken" type="text" />
+            <label class="field-label" for="dictEn">English</label>
+            <input id="dictEn" type="text" />
+            <label class="field-label" for="dictJa">日本語</label>
+            <input id="dictJa" type="text" />
+            <label class="field-label" for="dictOrigin">語源/メモ</label>
+            <input id="dictOrigin" type="text" />
+            <label class="field-label" for="dictGender">性（m/f/n）</label>
+            <input id="dictGender" type="text" placeholder="m / f / n" />
+            <label class="field-label" for="dictGrammarRefs">文法ID（|区切り）</label>
+            <input id="dictGrammarRefs" type="text" placeholder="g1|g2" />
+          </div>
+          <div class="sentence-head">
+            <div class="actions">
+              <button id="saveDictEntry">保存/更新</button>
+            </div>
+            <div class="actions">
+              <button id="deleteDictEntry">削除</button>
+            </div>
+          </div>
+          <p id="dictStatus" class="status-text">未編集</p>
+          <table class="vocab-table">
+            <thead>
+              <tr>
+                <th>単語</th>
+                <th>English</th>
+                <th>日本語</th>
+                <th>性</th>
+                <th>文法ID</th>
+              </tr>
+            </thead>
+            <tbody id="dictTableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="card edit-only">
+          <h3>文法表 追加/編集フォーム（現在の文）</h3>
+          <label class="field-label" for="grammarIdInput">文法ID</label>
+          <input id="grammarIdInput" type="text" placeholder="例: g-article-gender" />
+          <label class="field-label" for="grammarTypeInput">種類</label>
+          <select id="grammarTypeInput">
+            <option value="grammar">文法一般</option>
+            <option value="conjugation">活用表</option>
+            <option value="pattern">構文</option>
+            <option value="idiom">慣用表現</option>
+          </select>
+          <label class="field-label" for="grammarTagsInput">タグ（|区切り）</label>
+          <input id="grammarTagsInput" type="text" placeholder="例: verb|etre" />
+          <label class="field-label" for="grammarTitleInput">タイトル</label>
+          <input id="grammarTitleInput" type="text" />
+          <label class="field-label" for="grammarBodyInput">説明</label>
+          <textarea id="grammarBodyInput" rows="3"></textarea>
+          <label class="field-label" for="grammarTableInput">表データ（1行=1行、列は | 区切り）</label>
+          <textarea id="grammarTableInput" rows="4" placeholder="人称 | 数 | etre&#10;1 | 単 | suis"></textarea>
+          <div class="sentence-head">
+            <div class="actions">
+              <button id="saveGrammarItem">保存/更新</button>
+            </div>
+            <div class="actions">
+              <button id="deleteGrammarItem">削除</button>
+            </div>
+          </div>
+          <p id="grammarEditStatus" class="status-text">未編集</p>
+          <table class="vocab-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>タイトル</th>
+              </tr>
+            </thead>
+            <tbody id="grammarEditorTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <template id="tokenTemplate">
+      <span class="token-wrap">
+        <span class="token"></span>
+        <span class="tooltip"></span>
+      </span>
+    </template>
+
+    <dialog id="sectionInfoDialog">
+      <h3 id="sectionInfoDialogTitle">章解説</h3>
+      <p id="sectionInfoDialogBody"></p>
+      <button id="closeSectionInfo">閉じる</button>
+    </dialog>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

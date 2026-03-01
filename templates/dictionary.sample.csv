@@ -1,0 +1,15 @@
+source_language,token,en,ja,origin,gender,grammar_refs
+フランス語,Maurice,first name,モーリス,固有名詞,,
+フランス語,Leblanc,surname,ルブラン,blanc=白,,
+フランス語,est,is,〜である,etre 活用,,g-etre-present
+フランス語,un,a,不定冠詞,冠詞,m,g-article-gender
+フランス語,ecrivain,writer,作家,ecrire 由来,m,g-article-gender
+フランス語,trop,too,あまりに,副詞,,g-adverb
+フランス語,meconnu,little-known,知られていない,me- + connu,m,g-participle-adj
+フランス語,personnage,character,人物,名詞,m,g-article-gender
+フランス語,encombrant,burdensome,厄介な,encombrer 由来,m,g-adjective-position
+フランス語,oeuvre,work,作品,名詞,f,
+フランス語,heros,hero,主人公,名詞,m,
+ロシア語,Он,he,彼,3人称代名詞,,
+ロシア語,вдруг,suddenly,突然,副詞,,
+ロシア語,рассмеялся,burst into laughter,笑い出した,完了体/再帰形,,g-aspect
