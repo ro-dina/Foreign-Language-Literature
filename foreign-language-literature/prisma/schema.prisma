@@ -1,12 +1,174 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  schemas   = ["public"]
+}
+
+enum Gender {
+  m
+  f
+  n
+
+  @@schema("public")
+}
+
+enum GrammarType {
+  grammar
+  conjugation
+  pattern
+  idiom
+
+  @@schema("public")
+}
+
+model Work {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug           String    @unique @db.VarChar(80)
+  title          String    @db.VarChar(200)
+  sourceLanguage String    @db.VarChar(40)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(6)
+  sections       Section[]
+
+  @@map("works")
+  @@schema("public")
+}
+
+model Section {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId      String     @db.Uuid
+  chapterNo   Int?
+  title       String     @db.VarChar(200)
+  description String?
+  sortOrder   Int        @default(0)
+  createdAt   DateTime   @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime   @updatedAt @db.Timestamptz(6)
+  work        Work       @relation(fields: [workId], references: [id], onDelete: Cascade)
+  sentences   Sentence[]
+
+  @@index([workId, sortOrder])
+  @@map("sections")
+  @@schema("public")
+}
+
+model Sentence {
+  id        String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sectionId String            @db.Uuid
+  label     String            @db.VarChar(220)
+  source    String
+  english   String?
+  japanese  String?
+  sortOrder Int               @default(0)
+  buildUp   Json              @default("[]")
+  notes     Json              @default("[]")
+  createdAt DateTime          @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime          @updatedAt @db.Timestamptz(6)
+  section   Section           @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  tokens    SentenceToken[]
+  grammar   SentenceGrammar[]
+  progress  SentenceProgress[]
+
+  @@index([sectionId, sortOrder])
+  @@map("sentences")
+  @@schema("public")
+}
+
+model SentenceToken {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sentenceId  String   @db.Uuid
+  sortOrder   Int      @default(0)
+  text        String   @db.VarChar(120)
+  en          String?
+  ja          String?
+  origin      String?
+  gender      Gender?
+  grammarRefs Json     @default("[]")
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+  sentence    Sentence @relation(fields: [sentenceId], references: [id], onDelete: Cascade)
+
+  @@index([sentenceId, sortOrder])
+  @@map("sentence_tokens")
+  @@schema("public")
+}
+
+model DictionaryEntry {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceLanguage String      @db.VarChar(40)
+  token          String      @db.VarChar(120)
+  en             String?
+  ja             String?
+  origin         String?
+  gender         Gender?
+  grammarRefs    Json        @default("[]")
+  createdAt      DateTime    @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime    @updatedAt @db.Timestamptz(6)
+  weakFlags      WeakToken[]
+
+  @@unique([sourceLanguage, token])
+  @@map("dictionary_entries")
+  @@schema("public")
+}
+
+model SentenceGrammar {
+  id        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sentenceId String     @db.Uuid
+  itemId    String      @db.VarChar(120)
+  type      GrammarType @default(grammar)
+  title     String      @db.VarChar(200)
+  body      String?
+  tags      Json        @default("[]")
+  tableRows Json        @default("[]")
+  createdAt DateTime    @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime    @updatedAt @db.Timestamptz(6)
+  sentence  Sentence    @relation(fields: [sentenceId], references: [id], onDelete: Cascade)
+
+  @@unique([sentenceId, itemId])
+  @@index([sentenceId])
+  @@map("sentence_grammar")
+  @@schema("public")
+}
+
+model SentenceProgress {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @db.Uuid
+  sentenceId String   @db.Uuid
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(6)
+  sentence   Sentence @relation(fields: [sentenceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sentenceId])
+  @@index([sentenceId])
+  @@map("sentence_progress")
+  @@schema("public")
+}
+
+model WeakToken {
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String           @db.Uuid
+  sourceLanguage    String           @db.VarChar(40)
+  token             String           @db.VarChar(120)
+  createdAt         DateTime         @default(now()) @db.Timestamptz(6)
+  dictionaryEntryId String?          @db.Uuid
+  dictionaryEntry   DictionaryEntry? @relation(fields: [dictionaryEntryId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, sourceLanguage, token])
+  @@index([dictionaryEntryId])
+  @@map("weak_tokens")
+  @@schema("public")
+}
+
+model EditorAccount {
+  userId    String   @id @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("editor_accounts")
+  @@schema("public")
 }

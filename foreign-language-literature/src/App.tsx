@@ -169,7 +169,7 @@ export default function App() {
   const [sectionId, setSectionId] = useState(data[0]?.sections[0]?.id || '')
   const [sentenceId, setSentenceId] = useState(data[0]?.sections[0]?.sentences[0]?.id || '')
 
-  const [editMode, setEditMode] = useState(false)
+  const [pageMode, setPageMode] = useState<'read' | 'edit'>('read')
   const [bookMode, setBookMode] = useState(false)
   const [hintsOn, setHintsOn] = useState(true)
   const [vocabOn, setVocabOn] = useState(true)
@@ -187,6 +187,7 @@ export default function App() {
   const [quickBuild, setQuickBuild] = useState('')
   const [quickNotes, setQuickNotes] = useState('')
   const [quickTokens, setQuickTokens] = useState('')
+  const [quickInsertMode, setQuickInsertMode] = useState<'afterCurrent' | 'end'>('afterCurrent')
   const [editLabel, setEditLabel] = useState('')
   const [editSource, setEditSource] = useState('')
   const [editEnglish, setEditEnglish] = useState('')
@@ -228,9 +229,9 @@ export default function App() {
     const uiRaw = localStorage.getItem(LS_UI)
     if (!uiRaw) return
     try {
-      const ui = JSON.parse(uiRaw) as { paneWidth?: number; editMode?: boolean }
+      const ui = JSON.parse(uiRaw) as { paneWidth?: number; pageMode?: 'read' | 'edit' }
       if (ui.paneWidth) setPaneWidth(ui.paneWidth)
-      if (typeof ui.editMode === 'boolean') setEditMode(ui.editMode)
+      if (ui.pageMode === 'read' || ui.pageMode === 'edit') setPageMode(ui.pageMode)
     } catch {
       // ignore
     }
@@ -278,14 +279,14 @@ export default function App() {
   }, [readSet, weakSet])
 
   useEffect(() => {
-    localStorage.setItem(LS_UI, JSON.stringify({ paneWidth, editMode }))
-  }, [paneWidth, editMode])
+    localStorage.setItem(LS_UI, JSON.stringify({ paneWidth, pageMode }))
+  }, [paneWidth, pageMode])
 
   useEffect(() => {
-    if (!authUser && editMode) {
-      setEditMode(false)
+    if (!authUser && pageMode === 'edit') {
+      setPageMode('read')
     }
-  }, [authUser, editMode])
+  }, [authUser, pageMode])
 
   useEffect(() => {
     if (!accessToken) {
@@ -446,6 +447,13 @@ export default function App() {
       grammar: []
     }
 
+    const insertSentences = (list: Sentence[]) => {
+      if (quickInsertMode === 'end') return [...list, newSentence]
+      const idx = list.findIndex((x) => x.id === sentence.id)
+      if (idx < 0) return [...list, newSentence]
+      return [...list.slice(0, idx + 1), newSentence, ...list.slice(idx + 1)]
+    }
+
     setData((prev) =>
       prev.map((w) =>
         w.id !== work.id
@@ -453,7 +461,7 @@ export default function App() {
           : {
               ...w,
               sections: w.sections.map((s) =>
-                s.id !== section.id ? s : { ...s, sentences: [...s.sentences, newSentence] }
+                s.id !== section.id ? s : { ...s, sentences: insertSentences(s.sentences) }
               )
             }
       )
@@ -762,7 +770,7 @@ export default function App() {
     } finally {
       setAccessToken('')
       setAuthUser(null)
-      setEditMode(false)
+      setPageMode('read')
       setAuthBusy(false)
       setAuthMessage('ログアウトしました')
     }
@@ -789,7 +797,7 @@ export default function App() {
   const currentRead = readSet.has(sentenceKey(work.id, section.id, sentence.id))
 
   return (
-    <div className={`app ${editMode ? 'edit-mode' : ''}`} style={{ ['--left-pane-width' as string]: `${paneWidth}px` }}>
+    <div className={`app page-${pageMode}`} style={{ ['--left-pane-width' as string]: `${paneWidth}px` }}>
       <header className="topbar">
         <div>
           <h1>Reading Studio (React)</h1>
@@ -798,16 +806,23 @@ export default function App() {
         <div className="topbar-actions">
           <button
             onClick={() => {
-              if (!canEdit) {
-                setAuthMessage('編集するにはログインしてください')
-                return
-              }
-              setEditMode((v) => !v)
+              setPageMode('read')
             }}
           >
-            編集モード: {editMode && canEdit ? 'ON' : 'OFF'}
+            閲覧ページ
           </button>
-          <button onClick={() => setBookMode((v) => !v)}>表示: {bookMode ? 'Book' : 'Studio'}</button>
+          <button
+            onClick={() => {
+              if (!canEdit) {
+                setAuthMessage('編集ページは編集権限のあるログインが必要です')
+                return
+              }
+              setPageMode('edit')
+            }}
+          >
+            編集ページ
+          </button>
+          {pageMode === 'read' && <button onClick={() => setBookMode((v) => !v)}>表示: {bookMode ? 'Book' : 'Studio'}</button>}
         </div>
       </header>
 
@@ -921,277 +936,299 @@ export default function App() {
             })}
           </ol>
 
-          {editMode && canEdit && (
-            <div className="edit-block">
-              <h2>かんたん投稿</h2>
-              <textarea rows={3} value={quickSource} onChange={(e) => setQuickSource(e.target.value)} placeholder="本文" />
-              <textarea rows={2} value={quickEnglish} onChange={(e) => setQuickEnglish(e.target.value)} placeholder="英語" />
-              <textarea rows={2} value={quickJapanese} onChange={(e) => setQuickJapanese(e.target.value)} placeholder="日本語" />
-              <textarea rows={2} value={quickBuild} onChange={(e) => setQuickBuild(e.target.value)} placeholder="最小構成(1行=1)" />
-              <textarea rows={2} value={quickNotes} onChange={(e) => setQuickNotes(e.target.value)} placeholder="備考(1行=1)" />
-              <input value={quickTokens} onChange={(e) => setQuickTokens(e.target.value)} placeholder="tokens (|区切り)" />
-              <button onClick={addSentence}>追加</button>
-              <button onClick={deleteSentence}>現在文を削除</button>
-
-              <h2>現在文を編集</h2>
-              <input value={editLabel} onChange={(e) => setEditLabel(e.target.value)} placeholder="ラベル" />
-              <textarea rows={3} value={editSource} onChange={(e) => setEditSource(e.target.value)} placeholder="本文" />
-              <textarea rows={2} value={editEnglish} onChange={(e) => setEditEnglish(e.target.value)} placeholder="英語" />
-              <textarea rows={2} value={editJapanese} onChange={(e) => setEditJapanese(e.target.value)} placeholder="日本語" />
-              <textarea rows={2} value={editBuild} onChange={(e) => setEditBuild(e.target.value)} placeholder="最小構成(1行=1)" />
-              <textarea rows={2} value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="備考(1行=1)" />
-              <input value={editTokens} onChange={(e) => setEditTokens(e.target.value)} placeholder="tokens (|区切り)" />
-              <button onClick={saveSentenceEdits}>本文編集を保存</button>
-
-              <h2>単語辞書エディタ</h2>
-              <input value={vocabToken} onChange={(e) => setVocabToken(e.target.value)} placeholder="単語" />
-              <input value={vocabEnglish} onChange={(e) => setVocabEnglish(e.target.value)} placeholder="English" />
-              <input value={vocabJapanese} onChange={(e) => setVocabJapanese(e.target.value)} placeholder="日本語" />
-              <input value={vocabOrigin} onChange={(e) => setVocabOrigin(e.target.value)} placeholder="語源/メモ" />
-              <select value={vocabGender} onChange={(e) => setVocabGender(normalizeGender(e.target.value))}>
-                <option value="">性なし</option>
-                <option value="m">m</option>
-                <option value="f">f</option>
-                <option value="n">n</option>
-              </select>
-              <input
-                value={vocabGrammarRefs}
-                onChange={(e) => setVocabGrammarRefs(e.target.value)}
-                placeholder="文法参照ID (,区切り)"
-              />
-              <div className="row-actions">
-                <button onClick={saveVocabEntry}>単語を保存</button>
-                <button onClick={clearVocabForm}>入力クリア</button>
-              </div>
-              <ol className="sentence-list compact-list">
-                {languageVocabEntries.map((entry) => (
-                  <li key={entry.token}>
-                    <span onClick={() => loadVocabEntry(entry)}>
-                      {entry.token} | {entry.en || '-'} | {entry.ja || '-'}
-                    </span>
-                    <button className="inline-danger" onClick={() => deleteVocabEntry(entry.token)}>
-                      削除
-                    </button>
-                  </li>
-                ))}
-              </ol>
-
-              <h2>文法エディタ</h2>
-              <input value={grammarId} onChange={(e) => setGrammarId(e.target.value)} placeholder="id (未入力で自動)" />
-              <select value={grammarType} onChange={(e) => setGrammarType(e.target.value as 'grammar' | 'conjugation' | 'pattern' | 'idiom')}>
-                <option value="grammar">grammar</option>
-                <option value="conjugation">conjugation</option>
-                <option value="pattern">pattern</option>
-                <option value="idiom">idiom</option>
-              </select>
-              <input value={grammarTitle} onChange={(e) => setGrammarTitle(e.target.value)} placeholder="タイトル" />
-              <textarea rows={3} value={grammarBody} onChange={(e) => setGrammarBody(e.target.value)} placeholder="説明" />
-              <input value={grammarTags} onChange={(e) => setGrammarTags(e.target.value)} placeholder="タグ (,区切り)" />
-              <textarea
-                rows={3}
-                value={grammarTableRows}
-                onChange={(e) => setGrammarTableRows(e.target.value)}
-                placeholder="表(1行=1レコード, 列は | 区切り)"
-              />
-              <div className="row-actions">
-                <button onClick={saveGrammarItem}>文法を保存</button>
-                <button onClick={clearGrammarForm}>入力クリア</button>
-              </div>
-              <ol className="sentence-list compact-list">
-                {sentence.grammar.map((g) => (
-                  <li key={g.id}>
-                    <span onClick={() => loadGrammarItem(g)}>
-                      {g.id} | {g.title}
-                    </span>
-                    <button className="inline-danger" onClick={() => deleteGrammarItem(g.id)}>
-                      削除
-                    </button>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
         </aside>
 
         <div className="splitter" onMouseDown={() => setDragging(true)} />
 
         <section className="panel main">
-          <div className="row">
-            <h2>{sentence.label}</h2>
-            <div className="row-actions">
-              <button onClick={() => moveSentence(-1)}>前の文</button>
-              <button onClick={() => moveSentence(1)}>次の文</button>
-              <button onClick={toggleRead}>既読: {currentRead ? 'ON' : 'OFF'}</button>
-              <button onClick={() => setHintsOn((v) => !v)}>語彙ヒント: {hintsOn ? 'ON' : 'OFF'}</button>
-              <button onClick={() => setVocabOn((v) => !v)}>単語表: {vocabOn ? 'ON' : 'OFF'}</button>
-              <button onClick={() => setGenderOn((v) => !v)}>性カラー: {genderOn ? 'ON' : 'OFF'}</button>
-            </div>
-          </div>
+          {pageMode === 'edit' ? (
+            <div className="editor-page">
+              <div className="row">
+                <h2>編集ページ: {sentence.label}</h2>
+                <div className="row-actions">
+                  <button onClick={addSentence}>新規文を追加</button>
+                  <button className="inline-danger" onClick={deleteSentence}>
+                    現在文を削除
+                  </button>
+                </div>
+              </div>
 
-          <div className="card">
-            <div className="row">
-              <h3>章情報</h3>
-            </div>
-            <p>{section.description || '章解説は未入力です'}</p>
-            <p className="muted">
-              進捗: {readCount}/{section.sentences.length} 既読 / 苦手単語 {weakSet.size}
-            </p>
-          </div>
+              <div className="editor-grid">
+                <div className="card">
+                  <h3>本文エディタ</h3>
+                  <input value={editLabel} onChange={(e) => setEditLabel(e.target.value)} placeholder="ラベル" />
+                  <textarea rows={3} value={editSource} onChange={(e) => setEditSource(e.target.value)} placeholder="本文" />
+                  <textarea rows={2} value={editEnglish} onChange={(e) => setEditEnglish(e.target.value)} placeholder="英語" />
+                  <textarea rows={2} value={editJapanese} onChange={(e) => setEditJapanese(e.target.value)} placeholder="日本語" />
+                  <textarea rows={2} value={editBuild} onChange={(e) => setEditBuild(e.target.value)} placeholder="最小構成(1行=1)" />
+                  <textarea rows={2} value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="備考(1行=1)" />
+                  <input value={editTokens} onChange={(e) => setEditTokens(e.target.value)} placeholder="tokens (|区切り)" />
+                  <button onClick={saveSentenceEdits}>本文編集を保存</button>
+                </div>
 
-          {bookMode ? (
-            <div className="card">
-              <h3>Book View</h3>
-              <ol className="book-list">
-                {section.sentences.map((x) => (
-                  <li key={x.id} className="book-item" onClick={() => setSentenceId(x.id)}>
-                    <p className="source">{x.source}</p>
-                    <p className="muted">{x.japanese}</p>
-                  </li>
-                ))}
-              </ol>
+                <div className="card">
+                  <h3>新規文クイック追加</h3>
+                  <select value={quickInsertMode} onChange={(e) => setQuickInsertMode(e.target.value as 'afterCurrent' | 'end')}>
+                    <option value="afterCurrent">追加位置: 今見ている文の次</option>
+                    <option value="end">追加位置: 章の末尾</option>
+                  </select>
+                  <textarea rows={3} value={quickSource} onChange={(e) => setQuickSource(e.target.value)} placeholder="本文" />
+                  <textarea rows={2} value={quickEnglish} onChange={(e) => setQuickEnglish(e.target.value)} placeholder="英語" />
+                  <textarea rows={2} value={quickJapanese} onChange={(e) => setQuickJapanese(e.target.value)} placeholder="日本語" />
+                  <textarea rows={2} value={quickBuild} onChange={(e) => setQuickBuild(e.target.value)} placeholder="最小構成(1行=1)" />
+                  <textarea rows={2} value={quickNotes} onChange={(e) => setQuickNotes(e.target.value)} placeholder="備考(1行=1)" />
+                  <input value={quickTokens} onChange={(e) => setQuickTokens(e.target.value)} placeholder="tokens (|区切り)" />
+                  <button onClick={addSentence}>追加</button>
+                </div>
+
+                <div className="card">
+                  <h3>単語辞書エディタ</h3>
+                  <input value={vocabToken} onChange={(e) => setVocabToken(e.target.value)} placeholder="単語" />
+                  <input value={vocabEnglish} onChange={(e) => setVocabEnglish(e.target.value)} placeholder="English" />
+                  <input value={vocabJapanese} onChange={(e) => setVocabJapanese(e.target.value)} placeholder="日本語" />
+                  <input value={vocabOrigin} onChange={(e) => setVocabOrigin(e.target.value)} placeholder="語源/メモ" />
+                  <select value={vocabGender} onChange={(e) => setVocabGender(normalizeGender(e.target.value))}>
+                    <option value="">性なし</option>
+                    <option value="m">m</option>
+                    <option value="f">f</option>
+                    <option value="n">n</option>
+                  </select>
+                  <input
+                    value={vocabGrammarRefs}
+                    onChange={(e) => setVocabGrammarRefs(e.target.value)}
+                    placeholder="文法参照ID (,区切り)"
+                  />
+                  <div className="row-actions">
+                    <button onClick={saveVocabEntry}>単語を保存</button>
+                    <button onClick={clearVocabForm}>入力クリア</button>
+                  </div>
+                  <ol className="sentence-list compact-list">
+                    {languageVocabEntries.map((entry) => (
+                      <li key={entry.token}>
+                        <span onClick={() => loadVocabEntry(entry)}>
+                          {entry.token} | {entry.en || '-'} | {entry.ja || '-'}
+                        </span>
+                        <button className="inline-danger" onClick={() => deleteVocabEntry(entry.token)}>
+                          削除
+                        </button>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+
+                <div className="card">
+                  <h3>文法エディタ</h3>
+                  <input value={grammarId} onChange={(e) => setGrammarId(e.target.value)} placeholder="id (未入力で自動)" />
+                  <select value={grammarType} onChange={(e) => setGrammarType(e.target.value as 'grammar' | 'conjugation' | 'pattern' | 'idiom')}>
+                    <option value="grammar">grammar</option>
+                    <option value="conjugation">conjugation</option>
+                    <option value="pattern">pattern</option>
+                    <option value="idiom">idiom</option>
+                  </select>
+                  <input value={grammarTitle} onChange={(e) => setGrammarTitle(e.target.value)} placeholder="タイトル" />
+                  <textarea rows={3} value={grammarBody} onChange={(e) => setGrammarBody(e.target.value)} placeholder="説明" />
+                  <input value={grammarTags} onChange={(e) => setGrammarTags(e.target.value)} placeholder="タグ (,区切り)" />
+                  <textarea
+                    rows={3}
+                    value={grammarTableRows}
+                    onChange={(e) => setGrammarTableRows(e.target.value)}
+                    placeholder="表(1行=1レコード, 列は | 区切り)"
+                  />
+                  <div className="row-actions">
+                    <button onClick={saveGrammarItem}>文法を保存</button>
+                    <button onClick={clearGrammarForm}>入力クリア</button>
+                  </div>
+                  <ol className="sentence-list compact-list">
+                    {sentence.grammar.map((g) => (
+                      <li key={g.id}>
+                        <span onClick={() => loadGrammarItem(g)}>
+                          {g.id} | {g.title}
+                        </span>
+                        <button className="inline-danger" onClick={() => deleteGrammarItem(g.id)}>
+                          削除
+                        </button>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              </div>
             </div>
           ) : (
             <>
+              <div className="row">
+                <h2>{sentence.label}</h2>
+                <div className="row-actions">
+                  <button onClick={() => moveSentence(-1)}>前の文</button>
+                  <button onClick={() => moveSentence(1)}>次の文</button>
+                  <button onClick={toggleRead}>既読: {currentRead ? 'ON' : 'OFF'}</button>
+                  <button onClick={() => setHintsOn((v) => !v)}>語彙ヒント: {hintsOn ? 'ON' : 'OFF'}</button>
+                  <button onClick={() => setVocabOn((v) => !v)}>単語表: {vocabOn ? 'ON' : 'OFF'}</button>
+                  <button onClick={() => setGenderOn((v) => !v)}>性カラー: {genderOn ? 'ON' : 'OFF'}</button>
+                </div>
+              </div>
+
               <div className="card">
-                <h3>本文（{work.sourceLanguage}）</h3>
-                <p className="source">
-                  {mergedTokens.map((t, i) => {
-                    const weak = weakSet.has(dictKey(work.sourceLanguage, t.text))
-                    return (
-                      <span key={i} className={`token ${genderOn ? `gender-${t.gender || 'x'}` : ''} ${weak ? 'weak-token' : ''}`}>
-                        {t.text}{' '}
-                        {hintsOn && (
-                          <span className="hint">
-                            EN: {t.en || '-'} / JA: {t.ja || '-'}
-                            {!!t.grammarRefs?.length && (
-                              <>
-                                <br />
-                                G:{' '}
-                                {t.grammarRefs.map((ref, refIdx) => (
-                                  <button
-                                    key={`${t.text}-${ref}`}
-                                    className="link-btn"
-                                    onClick={() => jumpToGrammar(ref)}
-                                  >
-                                    {ref}
-                                    {refIdx < t.grammarRefs.length - 1 ? ',' : ''}
-                                  </button>
-                                ))}
-                              </>
-                            )}
-                          </span>
-                        )}
-                      </span>
-                    )
-                  })}
+                <div className="row">
+                  <h3>章情報</h3>
+                </div>
+                <p>{section.description || '章解説は未入力です'}</p>
+                <p className="muted">
+                  進捗: {readCount}/{section.sentences.length} 既読 / 苦手単語 {weakSet.size}
                 </p>
               </div>
 
-              <div className="grid2">
+              {bookMode ? (
                 <div className="card">
-                  <h3>英語</h3>
-                  <p>{sentence.english}</p>
-                </div>
-                <div className="card">
-                  <h3>日本語</h3>
-                  <p>{sentence.japanese}</p>
-                </div>
-              </div>
-
-              <div className="card">
-                <h3>最小構成からの積み上げ</h3>
-                <ol>
-                  {sentence.buildUp.map((s, idx) => (
-                    <li key={idx}>{idx === 0 ? s : diffBuildStep(sentence.buildUp[idx - 1], s)}</li>
-                  ))}
-                </ol>
-              </div>
-
-              <div className="card">
-                <h3>備考</h3>
-                <ul>
-                  {sentence.notes.map((n, idx) => (
-                    <li key={idx}>{n}</li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="card" id="grammar-panel">
-                <h3>文法表</h3>
-                {sentence.grammar.length === 0 ? (
-                  <p className="muted">この文の文法項目は未登録です。</p>
-                ) : (
-                  <div className="grammar-list">
-                    {sentence.grammar.map((g) => (
-                      <div key={g.id} className="grammar-item" id={g.id}>
-                        <p>
-                          <strong>{g.title}</strong> <span className="muted">({g.id})</span>
-                        </p>
-                        {g.type && <p className="muted">type: {g.type}</p>}
-                        {g.tags && g.tags.length > 0 && <p className="muted">tags: {g.tags.join(', ')}</p>}
-                        {g.body && <p>{g.body}</p>}
-                        {g.tableRows && g.tableRows.length > 0 && (
-                          <table className="table">
-                            <tbody>
-                              {g.tableRows.map((row, rowIdx) => (
-                                <tr key={`${g.id}-${rowIdx}`}>
-                                  {row.map((cell, cellIdx) => (
-                                    <td key={`${g.id}-${rowIdx}-${cellIdx}`}>{cell}</td>
-                                  ))}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        )}
-                      </div>
+                  <h3>Book View</h3>
+                  <ol className="book-list">
+                    {section.sentences.map((x) => (
+                      <li key={x.id} className="book-item" onClick={() => setSentenceId(x.id)}>
+                        <p className="source">{x.source}</p>
+                        <p className="muted">{x.japanese}</p>
+                      </li>
                     ))}
-                  </div>
-                )}
-              </div>
-
-              {vocabOn && (
-                <div className="card">
-                  <h3>単語表</h3>
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>{work.sourceLanguage}</th>
-                        <th>English</th>
-                        <th>日本語</th>
-                        <th>性</th>
-                        <th>苦手</th>
-                        <th>語源/メモ</th>
-                        <th>文法参照</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Array.from(new Map(mergedTokens.map((t) => [t.text, t])).values()).map((t) => {
+                  </ol>
+                </div>
+              ) : (
+                <>
+                  <div className="card">
+                    <h3>本文（{work.sourceLanguage}）</h3>
+                    <p className="source">
+                      {mergedTokens.map((t, i) => {
                         const weak = weakSet.has(dictKey(work.sourceLanguage, t.text))
                         return (
-                          <tr key={t.text}>
-                            <td className={genderOn ? `gender-${t.gender || 'x'}` : ''}>{t.text}</td>
-                            <td>{t.en}</td>
-                            <td>{t.ja}</td>
-                            <td className={genderOn ? `gender-${t.gender || 'x'}` : ''}>{t.gender}</td>
-                            <td>
-                              <button className={`weak-token-btn ${weak ? 'on' : ''}`} onClick={() => toggleWeak(t.text)}>
-                                {weak ? 'ON' : 'OFF'}
-                              </button>
-                            </td>
-                            <td>{t.origin}</td>
-                            <td>
-                              {(t.grammarRefs || []).map((ref) => (
-                                <button key={`${t.text}-${ref}`} className="link-btn" onClick={() => jumpToGrammar(ref)}>
-                                  {ref}
-                                </button>
-                              ))}
-                            </td>
-                          </tr>
+                          <span key={i} className={`token ${genderOn ? `gender-${t.gender || 'x'}` : ''} ${weak ? 'weak-token' : ''}`}>
+                            {t.text}{' '}
+                            {hintsOn && (
+                              <span className="hint">
+                                EN: {t.en || '-'} / JA: {t.ja || '-'}
+                                {!!t.grammarRefs?.length && (
+                                  <>
+                                    <br />
+                                    G:{' '}
+                                    {t.grammarRefs.map((ref, refIdx) => (
+                                      <button key={`${t.text}-${ref}`} className="link-btn" onClick={() => jumpToGrammar(ref)}>
+                                        {ref}
+                                        {refIdx < t.grammarRefs.length - 1 ? ',' : ''}
+                                      </button>
+                                    ))}
+                                  </>
+                                )}
+                              </span>
+                            )}
+                          </span>
                         )
                       })}
-                    </tbody>
-                  </table>
-                </div>
+                    </p>
+                  </div>
+
+                  <div className="grid2">
+                    <div className="card">
+                      <h3>英語</h3>
+                      <p>{sentence.english}</p>
+                    </div>
+                    <div className="card">
+                      <h3>日本語</h3>
+                      <p>{sentence.japanese}</p>
+                    </div>
+                  </div>
+
+                  <div className="card">
+                    <h3>最小構成からの積み上げ</h3>
+                    <ol>
+                      {sentence.buildUp.map((s, idx) => (
+                        <li key={idx}>{idx === 0 ? s : diffBuildStep(sentence.buildUp[idx - 1], s)}</li>
+                      ))}
+                    </ol>
+                  </div>
+
+                  <div className="card">
+                    <h3>備考</h3>
+                    <ul>
+                      {sentence.notes.map((n, idx) => (
+                        <li key={idx}>{n}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="card" id="grammar-panel">
+                    <h3>文法表</h3>
+                    {sentence.grammar.length === 0 ? (
+                      <p className="muted">この文の文法項目は未登録です。</p>
+                    ) : (
+                      <div className="grammar-list">
+                        {sentence.grammar.map((g) => (
+                          <div key={g.id} className="grammar-item" id={g.id}>
+                            <p>
+                              <strong>{g.title}</strong> <span className="muted">({g.id})</span>
+                            </p>
+                            {g.type && <p className="muted">type: {g.type}</p>}
+                            {g.tags && g.tags.length > 0 && <p className="muted">tags: {g.tags.join(', ')}</p>}
+                            {g.body && <p>{g.body}</p>}
+                            {g.tableRows && g.tableRows.length > 0 && (
+                              <table className="table">
+                                <tbody>
+                                  {g.tableRows.map((row, rowIdx) => (
+                                    <tr key={`${g.id}-${rowIdx}`}>
+                                      {row.map((cell, cellIdx) => (
+                                        <td key={`${g.id}-${rowIdx}-${cellIdx}`}>{cell}</td>
+                                      ))}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {vocabOn && (
+                    <div className="card">
+                      <h3>単語表</h3>
+                      <table className="table">
+                        <thead>
+                          <tr>
+                            <th>{work.sourceLanguage}</th>
+                            <th>English</th>
+                            <th>日本語</th>
+                            <th>性</th>
+                            <th>苦手</th>
+                            <th>語源/メモ</th>
+                            <th>文法参照</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Array.from(new Map(mergedTokens.map((t) => [t.text, t])).values()).map((t) => {
+                            const weak = weakSet.has(dictKey(work.sourceLanguage, t.text))
+                            return (
+                              <tr key={t.text}>
+                                <td className={genderOn ? `gender-${t.gender || 'x'}` : ''}>{t.text}</td>
+                                <td>{t.en}</td>
+                                <td>{t.ja}</td>
+                                <td className={genderOn ? `gender-${t.gender || 'x'}` : ''}>{t.gender}</td>
+                                <td>
+                                  <button className={`weak-token-btn ${weak ? 'on' : ''}`} onClick={() => toggleWeak(t.text)}>
+                                    {weak ? 'ON' : 'OFF'}
+                                  </button>
+                                </td>
+                                <td>{t.origin}</td>
+                                <td>
+                                  {(t.grammarRefs || []).map((ref) => (
+                                    <button key={`${t.text}-${ref}`} className="link-btn" onClick={() => jumpToGrammar(ref)}>
+                                      {ref}
+                                    </button>
+                                  ))}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}

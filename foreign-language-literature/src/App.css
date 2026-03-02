@@ -54,6 +54,7 @@
 
 .side { overflow: auto; }
 .main { display: grid; gap: 1rem; align-content: start; }
+.page-edit .main { align-content: stretch; }
 
 .splitter {
   width: 10px;
@@ -207,14 +208,23 @@ button:disabled {
 .muted { color: #665d4f; font-size: 0.9rem; }
 .empty { padding: 2rem; }
 
-.edit-block {
-  border-top: 1px dashed var(--line);
-  margin-top: 0.8rem;
-  padding-top: 0.8rem;
+.editor-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.editor-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.editor-grid .card {
+  min-height: 220px;
 }
 
 .compact-list {
-  max-height: 160px;
+  max-height: 220px;
   overflow: auto;
 }
 .compact-list li {
