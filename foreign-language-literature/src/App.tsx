@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
-import type { DictEntry, Sentence, Token, Work } from './models'
+import type { DictEntry, GrammarItem, Sentence, Token, Work } from './models'
 import { seedData } from './seedData'
 import {
   getUserByAccessToken,
@@ -12,6 +12,7 @@ import {
 } from './lib/supabaseAuth'
 
 const LS_DATA = 'rsl-react-data'
+const LS_DICT = 'rsl-react-dict'
 const LS_PROGRESS = 'rsl-react-progress'
 const LS_UI = 'rsl-react-ui'
 const LS_AUTH = 'rsl-react-auth'
@@ -47,6 +48,51 @@ function buildDictFromData(data: Work[]): Record<string, DictEntry> {
     })
   })
   return out
+}
+
+function hydrateDictRecord(input: unknown): Record<string, DictEntry> {
+  if (!input || typeof input !== 'object') return {}
+  const out: Record<string, DictEntry> = {}
+  Object.entries(input as Record<string, DictEntry>).forEach(([k, v]) => {
+    if (!v || typeof v !== 'object') return
+    out[k] = {
+      sourceLanguage: v.sourceLanguage || '',
+      token: v.token || '',
+      en: v.en || '',
+      ja: v.ja || '',
+      origin: v.origin || '',
+      gender: normalizeGender(v.gender),
+      grammarRefs: Array.isArray(v.grammarRefs) ? v.grammarRefs.map(String) : []
+    }
+  })
+  return out
+}
+
+function mergeDictWithData(data: Work[], dict: Record<string, DictEntry>) {
+  const next = { ...dict }
+  let changed = false
+  data.forEach((w) => {
+    w.sections.forEach((s) => {
+      s.sentences.forEach((x) => {
+        x.tokens.forEach((t) => {
+          const key = dictKey(w.sourceLanguage, t.text)
+          if (!next[key]) {
+            changed = true
+            next[key] = {
+              sourceLanguage: w.sourceLanguage,
+              token: t.text,
+              en: t.en || '',
+              ja: t.ja || '',
+              origin: t.origin || '',
+              gender: normalizeGender(t.gender),
+              grammarRefs: t.grammarRefs || []
+            }
+          }
+        })
+      })
+    })
+  })
+  return { next, changed }
 }
 
 function mergeToken(language: string, token: Token, dict: Record<string, DictEntry>) {
@@ -104,7 +150,16 @@ export default function App() {
       return seedData
     }
   })
-  const [dict, setDict] = useState<Record<string, DictEntry>>(() => buildDictFromData(seedData))
+  const [dict, setDict] = useState<Record<string, DictEntry>>(() => {
+    const raw = localStorage.getItem(LS_DICT)
+    if (!raw) return buildDictFromData(seedData)
+    try {
+      const parsed = hydrateDictRecord(JSON.parse(raw))
+      return Object.keys(parsed).length > 0 ? parsed : buildDictFromData(seedData)
+    } catch {
+      return buildDictFromData(seedData)
+    }
+  })
 
   const [workId, setWorkId] = useState(data[0]?.id || '')
   const [sectionId, setSectionId] = useState(data[0]?.sections[0]?.id || '')
@@ -128,6 +183,25 @@ export default function App() {
   const [quickBuild, setQuickBuild] = useState('')
   const [quickNotes, setQuickNotes] = useState('')
   const [quickTokens, setQuickTokens] = useState('')
+  const [editLabel, setEditLabel] = useState('')
+  const [editSource, setEditSource] = useState('')
+  const [editEnglish, setEditEnglish] = useState('')
+  const [editJapanese, setEditJapanese] = useState('')
+  const [editBuild, setEditBuild] = useState('')
+  const [editNotes, setEditNotes] = useState('')
+  const [editTokens, setEditTokens] = useState('')
+  const [vocabToken, setVocabToken] = useState('')
+  const [vocabEnglish, setVocabEnglish] = useState('')
+  const [vocabJapanese, setVocabJapanese] = useState('')
+  const [vocabOrigin, setVocabOrigin] = useState('')
+  const [vocabGender, setVocabGender] = useState<'' | 'm' | 'f' | 'n'>('')
+  const [vocabGrammarRefs, setVocabGrammarRefs] = useState('')
+  const [grammarId, setGrammarId] = useState('')
+  const [grammarType, setGrammarType] = useState<'grammar' | 'conjugation' | 'pattern' | 'idiom'>('grammar')
+  const [grammarTitle, setGrammarTitle] = useState('')
+  const [grammarBody, setGrammarBody] = useState('')
+  const [grammarTags, setGrammarTags] = useState('')
+  const [grammarTableRows, setGrammarTableRows] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [authUser, setAuthUser] = useState<AuthUser | null>(null)
@@ -192,6 +266,10 @@ export default function App() {
   }, [data])
 
   useEffect(() => {
+    localStorage.setItem(LS_DICT, JSON.stringify(dict))
+  }, [dict])
+
+  useEffect(() => {
     localStorage.setItem(LS_PROGRESS, JSON.stringify({ read: Array.from(readSet), weak: Array.from(weakSet) }))
   }, [readSet, weakSet])
 
@@ -214,8 +292,11 @@ export default function App() {
   }, [accessToken])
 
   useEffect(() => {
-    setDict(buildDictFromData(data))
-  }, [data])
+    const merged = mergeDictWithData(data, dict)
+    if (merged.changed) {
+      setDict(merged.next)
+    }
+  }, [data, dict])
 
   const work = useMemo(() => data.find((w) => w.id === workId) || data[0], [data, workId])
   const section = useMemo(() => work?.sections.find((s) => s.id === sectionId) || work?.sections[0], [work, sectionId])
@@ -238,10 +319,34 @@ export default function App() {
     }
   }, [section, sentenceId])
 
+  useEffect(() => {
+    if (!sentence) return
+    setEditLabel(sentence.label || '')
+    setEditSource(sentence.source || '')
+    setEditEnglish(sentence.english || '')
+    setEditJapanese(sentence.japanese || '')
+    setEditBuild((sentence.buildUp || []).join('\n'))
+    setEditNotes((sentence.notes || []).join('\n'))
+    setEditTokens((sentence.tokens || []).map((t) => t.text).join(' | '))
+    setGrammarId('')
+    setGrammarType('grammar')
+    setGrammarTitle('')
+    setGrammarBody('')
+    setGrammarTags('')
+    setGrammarTableRows('')
+  }, [sentence])
+
   const mergedTokens = useMemo(() => {
     if (!work || !sentence) return []
     return sentence.tokens.map((t) => mergeToken(work.sourceLanguage, t, dict))
   }, [work, sentence, dict])
+
+  const languageVocabEntries = useMemo(() => {
+    if (!work) return []
+    return Object.values(dict)
+      .filter((d) => d.sourceLanguage === work.sourceLanguage)
+      .sort((a, b) => a.token.localeCompare(b.token))
+  }, [dict, work])
 
   const readCount = useMemo(() => {
     if (!work || !section) return 0
@@ -296,6 +401,16 @@ export default function App() {
     if (next.has(key)) next.delete(key)
     else next.add(key)
     setWeakSet(next)
+  }
+
+  const jumpToGrammar = (id: string) => {
+    const el = document.getElementById(id)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
+    }
+    const panel = document.getElementById('grammar-panel')
+    if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   const addSentence = () => {
@@ -371,6 +486,225 @@ export default function App() {
     setSentenceId(nextId)
   }
 
+  const saveSentenceEdits = () => {
+    if (!work || !section || !sentence) return
+    if (!authUser) return
+    if (!window.confirm('本文編集を保存しますか？')) return
+    const nextSource = editSource.trim()
+    if (!nextSource) {
+      window.alert('本文は必須です')
+      return
+    }
+    const tokens = (editTokens.trim() ? editTokens : nextSource)
+      .split(editTokens.trim() ? '|' : /\s+/)
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .map((text) => ({ text }))
+    const nextLabel = editLabel.trim() || (nextSource.length > 70 ? `${nextSource.slice(0, 70)}...` : nextSource)
+    setData((prev) =>
+      prev.map((w) =>
+        w.id !== work.id
+          ? w
+          : {
+              ...w,
+              sections: w.sections.map((s) =>
+                s.id !== section.id
+                  ? s
+                  : {
+                      ...s,
+                      sentences: s.sentences.map((x) =>
+                        x.id !== sentence.id
+                          ? x
+                          : {
+                              ...x,
+                              label: nextLabel,
+                              source: nextSource,
+                              english: editEnglish.trim(),
+                              japanese: editJapanese.trim(),
+                              tokens,
+                              buildUp: editBuild
+                                .split(/\r?\n/)
+                                .map((v) => v.trim())
+                                .filter(Boolean),
+                              notes: editNotes
+                                .split(/\r?\n/)
+                                .map((v) => v.trim())
+                                .filter(Boolean)
+                            }
+                      )
+                    }
+              )
+            }
+      )
+    )
+  }
+
+  const clearVocabForm = () => {
+    setVocabToken('')
+    setVocabEnglish('')
+    setVocabJapanese('')
+    setVocabOrigin('')
+    setVocabGender('')
+    setVocabGrammarRefs('')
+  }
+
+  const saveVocabEntry = () => {
+    if (!work) return
+    if (!authUser) return
+    const token = vocabToken.trim()
+    if (!token) {
+      window.alert('単語は必須です')
+      return
+    }
+    if (!window.confirm(`単語「${token}」を保存しますか？`)) return
+    const key = dictKey(work.sourceLanguage, token)
+    setDict((prev) => ({
+      ...prev,
+      [key]: {
+        sourceLanguage: work.sourceLanguage,
+        token,
+        en: vocabEnglish.trim(),
+        ja: vocabJapanese.trim(),
+        origin: vocabOrigin.trim(),
+        gender: normalizeGender(vocabGender),
+        grammarRefs: vocabGrammarRefs
+          .split(',')
+          .map((v) => v.trim())
+          .filter(Boolean)
+      }
+    }))
+  }
+
+  const loadVocabEntry = (entry: DictEntry) => {
+    setVocabToken(entry.token)
+    setVocabEnglish(entry.en)
+    setVocabJapanese(entry.ja)
+    setVocabOrigin(entry.origin)
+    setVocabGender(normalizeGender(entry.gender))
+    setVocabGrammarRefs((entry.grammarRefs || []).join(', '))
+  }
+
+  const deleteVocabEntry = (token: string) => {
+    if (!work) return
+    if (!authUser) return
+    if (!window.confirm(`単語「${token}」を削除しますか？`)) return
+    const key = dictKey(work.sourceLanguage, token)
+    setDict((prev) => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+    if (vocabToken.trim() === token) {
+      clearVocabForm()
+    }
+  }
+
+  const clearGrammarForm = () => {
+    setGrammarId('')
+    setGrammarType('grammar')
+    setGrammarTitle('')
+    setGrammarBody('')
+    setGrammarTags('')
+    setGrammarTableRows('')
+  }
+
+  const loadGrammarItem = (item: GrammarItem) => {
+    setGrammarId(item.id)
+    setGrammarType(item.type || 'grammar')
+    setGrammarTitle(item.title || '')
+    setGrammarBody(item.body || '')
+    setGrammarTags((item.tags || []).join(', '))
+    setGrammarTableRows((item.tableRows || []).map((r) => r.join(' | ')).join('\n'))
+  }
+
+  const saveGrammarItem = () => {
+    if (!work || !section || !sentence) return
+    if (!authUser) return
+    const title = grammarTitle.trim()
+    if (!title) {
+      window.alert('文法タイトルは必須です')
+      return
+    }
+    const idSeed = grammarId.trim() || `g-${toIdSeed(title) || 'grammar'}`
+    if (!window.confirm(`文法項目「${idSeed}」を保存しますか？`)) return
+    const item: GrammarItem = {
+      id: idSeed,
+      type: grammarType,
+      title,
+      body: grammarBody.trim(),
+      tags: grammarTags
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean),
+      tableRows: grammarTableRows
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) =>
+          line
+            .split('|')
+            .map((cell) => cell.trim())
+            .filter(Boolean)
+        )
+    }
+
+    setData((prev) =>
+      prev.map((w) =>
+        w.id !== work.id
+          ? w
+          : {
+              ...w,
+              sections: w.sections.map((s) =>
+                s.id !== section.id
+                  ? s
+                  : {
+                      ...s,
+                      sentences: s.sentences.map((x) =>
+                        x.id !== sentence.id
+                          ? x
+                          : {
+                              ...x,
+                              grammar: x.grammar.some((g) => g.id === idSeed)
+                                ? x.grammar.map((g) => (g.id === idSeed ? item : g))
+                                : [...x.grammar, item]
+                            }
+                      )
+                    }
+              )
+            }
+      )
+    )
+    setGrammarId(idSeed)
+  }
+
+  const deleteGrammarItem = (id: string) => {
+    if (!work || !section || !sentence) return
+    if (!authUser) return
+    if (!window.confirm(`文法項目「${id}」を削除しますか？`)) return
+    setData((prev) =>
+      prev.map((w) =>
+        w.id !== work.id
+          ? w
+          : {
+              ...w,
+              sections: w.sections.map((s) =>
+                s.id !== section.id
+                  ? s
+                  : {
+                      ...s,
+                      sentences: s.sentences.map((x) =>
+                        x.id !== sentence.id ? x : { ...x, grammar: x.grammar.filter((g) => g.id !== id) }
+                      )
+                    }
+              )
+            }
+      )
+    )
+    if (grammarId === id) {
+      clearGrammarForm()
+    }
+  }
+
   const handleSignIn = async () => {
     if (!email.trim() || !password) {
       setAuthMessage('メールとパスワードを入力してください')
@@ -398,7 +732,7 @@ export default function App() {
     setAuthBusy(true)
     setAuthMessage('')
     try {
-      const result = await signUpWithPassword(email.trim(), password)
+      const result = await signUpWithPassword(email.trim(), password, window.location.origin)
       if (result.accessToken) {
         setAccessToken(result.accessToken)
       }
@@ -593,6 +927,83 @@ export default function App() {
               <input value={quickTokens} onChange={(e) => setQuickTokens(e.target.value)} placeholder="tokens (|区切り)" />
               <button onClick={addSentence}>追加</button>
               <button onClick={deleteSentence}>現在文を削除</button>
+
+              <h2>現在文を編集</h2>
+              <input value={editLabel} onChange={(e) => setEditLabel(e.target.value)} placeholder="ラベル" />
+              <textarea rows={3} value={editSource} onChange={(e) => setEditSource(e.target.value)} placeholder="本文" />
+              <textarea rows={2} value={editEnglish} onChange={(e) => setEditEnglish(e.target.value)} placeholder="英語" />
+              <textarea rows={2} value={editJapanese} onChange={(e) => setEditJapanese(e.target.value)} placeholder="日本語" />
+              <textarea rows={2} value={editBuild} onChange={(e) => setEditBuild(e.target.value)} placeholder="最小構成(1行=1)" />
+              <textarea rows={2} value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="備考(1行=1)" />
+              <input value={editTokens} onChange={(e) => setEditTokens(e.target.value)} placeholder="tokens (|区切り)" />
+              <button onClick={saveSentenceEdits}>本文編集を保存</button>
+
+              <h2>単語辞書エディタ</h2>
+              <input value={vocabToken} onChange={(e) => setVocabToken(e.target.value)} placeholder="単語" />
+              <input value={vocabEnglish} onChange={(e) => setVocabEnglish(e.target.value)} placeholder="English" />
+              <input value={vocabJapanese} onChange={(e) => setVocabJapanese(e.target.value)} placeholder="日本語" />
+              <input value={vocabOrigin} onChange={(e) => setVocabOrigin(e.target.value)} placeholder="語源/メモ" />
+              <select value={vocabGender} onChange={(e) => setVocabGender(normalizeGender(e.target.value))}>
+                <option value="">性なし</option>
+                <option value="m">m</option>
+                <option value="f">f</option>
+                <option value="n">n</option>
+              </select>
+              <input
+                value={vocabGrammarRefs}
+                onChange={(e) => setVocabGrammarRefs(e.target.value)}
+                placeholder="文法参照ID (,区切り)"
+              />
+              <div className="row-actions">
+                <button onClick={saveVocabEntry}>単語を保存</button>
+                <button onClick={clearVocabForm}>入力クリア</button>
+              </div>
+              <ol className="sentence-list compact-list">
+                {languageVocabEntries.map((entry) => (
+                  <li key={entry.token}>
+                    <span onClick={() => loadVocabEntry(entry)}>
+                      {entry.token} | {entry.en || '-'} | {entry.ja || '-'}
+                    </span>
+                    <button className="inline-danger" onClick={() => deleteVocabEntry(entry.token)}>
+                      削除
+                    </button>
+                  </li>
+                ))}
+              </ol>
+
+              <h2>文法エディタ</h2>
+              <input value={grammarId} onChange={(e) => setGrammarId(e.target.value)} placeholder="id (未入力で自動)" />
+              <select value={grammarType} onChange={(e) => setGrammarType(e.target.value as 'grammar' | 'conjugation' | 'pattern' | 'idiom')}>
+                <option value="grammar">grammar</option>
+                <option value="conjugation">conjugation</option>
+                <option value="pattern">pattern</option>
+                <option value="idiom">idiom</option>
+              </select>
+              <input value={grammarTitle} onChange={(e) => setGrammarTitle(e.target.value)} placeholder="タイトル" />
+              <textarea rows={3} value={grammarBody} onChange={(e) => setGrammarBody(e.target.value)} placeholder="説明" />
+              <input value={grammarTags} onChange={(e) => setGrammarTags(e.target.value)} placeholder="タグ (,区切り)" />
+              <textarea
+                rows={3}
+                value={grammarTableRows}
+                onChange={(e) => setGrammarTableRows(e.target.value)}
+                placeholder="表(1行=1レコード, 列は | 区切り)"
+              />
+              <div className="row-actions">
+                <button onClick={saveGrammarItem}>文法を保存</button>
+                <button onClick={clearGrammarForm}>入力クリア</button>
+              </div>
+              <ol className="sentence-list compact-list">
+                {sentence.grammar.map((g) => (
+                  <li key={g.id}>
+                    <span onClick={() => loadGrammarItem(g)}>
+                      {g.id} | {g.title}
+                    </span>
+                    <button className="inline-danger" onClick={() => deleteGrammarItem(g.id)}>
+                      削除
+                    </button>
+                  </li>
+                ))}
+              </ol>
             </div>
           )}
         </aside>
@@ -647,6 +1058,22 @@ export default function App() {
                         {hintsOn && (
                           <span className="hint">
                             EN: {t.en || '-'} / JA: {t.ja || '-'}
+                            {!!t.grammarRefs?.length && (
+                              <>
+                                <br />
+                                G:{' '}
+                                {t.grammarRefs.map((ref, refIdx) => (
+                                  <button
+                                    key={`${t.text}-${ref}`}
+                                    className="link-btn"
+                                    onClick={() => jumpToGrammar(ref)}
+                                  >
+                                    {ref}
+                                    {refIdx < t.grammarRefs.length - 1 ? ',' : ''}
+                                  </button>
+                                ))}
+                              </>
+                            )}
                           </span>
                         )}
                       </span>
@@ -684,6 +1111,39 @@ export default function App() {
                 </ul>
               </div>
 
+              <div className="card" id="grammar-panel">
+                <h3>文法表</h3>
+                {sentence.grammar.length === 0 ? (
+                  <p className="muted">この文の文法項目は未登録です。</p>
+                ) : (
+                  <div className="grammar-list">
+                    {sentence.grammar.map((g) => (
+                      <div key={g.id} className="grammar-item" id={g.id}>
+                        <p>
+                          <strong>{g.title}</strong> <span className="muted">({g.id})</span>
+                        </p>
+                        {g.type && <p className="muted">type: {g.type}</p>}
+                        {g.tags && g.tags.length > 0 && <p className="muted">tags: {g.tags.join(', ')}</p>}
+                        {g.body && <p>{g.body}</p>}
+                        {g.tableRows && g.tableRows.length > 0 && (
+                          <table className="table">
+                            <tbody>
+                              {g.tableRows.map((row, rowIdx) => (
+                                <tr key={`${g.id}-${rowIdx}`}>
+                                  {row.map((cell, cellIdx) => (
+                                    <td key={`${g.id}-${rowIdx}-${cellIdx}`}>{cell}</td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {vocabOn && (
                 <div className="card">
                   <h3>単語表</h3>
@@ -696,6 +1156,7 @@ export default function App() {
                         <th>性</th>
                         <th>苦手</th>
                         <th>語源/メモ</th>
+                        <th>文法参照</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -713,6 +1174,13 @@ export default function App() {
                               </button>
                             </td>
                             <td>{t.origin}</td>
+                            <td>
+                              {(t.grammarRefs || []).map((ref) => (
+                                <button key={`${t.text}-${ref}`} className="link-btn" onClick={() => jumpToGrammar(ref)}>
+                                  {ref}
+                                </button>
+                              ))}
+                            </td>
                           </tr>
                         )
                       })}

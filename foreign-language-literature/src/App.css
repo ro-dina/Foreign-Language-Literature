@@ -157,6 +157,9 @@ button:disabled {
   line-height: 1.35;
 }
 .token:hover .hint { display: block; }
+.hint .link-btn {
+  margin-left: 0.25rem;
+}
 
 .table {
   width: 100%;
@@ -208,6 +211,53 @@ button:disabled {
   border-top: 1px dashed var(--line);
   margin-top: 0.8rem;
   padding-top: 0.8rem;
+}
+
+.compact-list {
+  max-height: 160px;
+  overflow: auto;
+}
+.compact-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  align-items: center;
+}
+.compact-list li span {
+  cursor: pointer;
+  flex: 1;
+}
+
+.inline-danger {
+  width: auto;
+  margin: 0;
+  background: #fee7e9;
+  color: #7f2230;
+  border-color: #f3bdc4;
+  padding: 0.2rem 0.45rem;
+}
+
+.link-btn {
+  width: auto;
+  margin: 0 0.25rem 0 0;
+  padding: 0.05rem 0.25rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #205a52;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.grammar-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.grammar-item {
+  border-top: 1px dashed var(--line);
+  padding-top: 0.5rem;
 }
 
 @media (max-width: 1000px) {

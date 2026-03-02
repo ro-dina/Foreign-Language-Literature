@@ -56,9 +56,11 @@ export async function signInWithPassword(email: string, password: string) {
   }
 }
 
-export async function signUpWithPassword(email: string, password: string) {
-  const res = await request('/signup', {
+export async function signUpWithPassword(email: string, password: string, emailRedirectTo?: string) {
+  const path = emailRedirectTo ? `/signup?redirect_to=${encodeURIComponent(emailRedirectTo)}` : '/signup'
+  const res = await request(path, {
     method: 'POST',
+    headers: emailRedirectTo ? { redirect_to: emailRedirectTo } : {},
     body: JSON.stringify({ email, password })
   })
   const data = (await res.json()) as Partial<AuthResponse>
