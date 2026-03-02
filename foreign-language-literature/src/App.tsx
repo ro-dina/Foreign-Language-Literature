@@ -16,6 +16,10 @@ const LS_DICT = 'rsl-react-dict'
 const LS_PROGRESS = 'rsl-react-progress'
 const LS_UI = 'rsl-react-ui'
 const LS_AUTH = 'rsl-react-auth'
+const EDITOR_EMAILS = (import.meta.env.VITE_EDITOR_EMAILS as string | undefined)
+  ?.split(',')
+  .map((v) => v.trim().toLowerCase())
+  .filter(Boolean) || []
 
 const dictKey = (language: string, token: string) => `${language}::${token}`
 const sentenceKey = (w: string, s: string, x: string) => `${w}::${s}::${x}`
@@ -781,7 +785,7 @@ export default function App() {
 
   if (!work || !section || !sentence) return <div className="empty">データがありません</div>
 
-  const canEdit = Boolean(authUser)
+  const canEdit = Boolean(authUser && (EDITOR_EMAILS.length === 0 || EDITOR_EMAILS.includes((authUser.email || '').toLowerCase())))
   const currentRead = readSet.has(sentenceKey(work.id, section.id, sentence.id))
 
   return (
@@ -815,6 +819,7 @@ export default function App() {
           ) : authUser ? (
             <div className="auth-block">
               <p className="muted">ログイン中: {authUser.email || authUser.id}</p>
+              <p className="muted">編集権限: {canEdit ? 'あり' : 'なし'}</p>
               <button onClick={handleSignOut} disabled={authBusy}>
                 ログアウト
               </button>
