@@ -16,10 +16,40 @@ const LS_DICT = 'rsl-react-dict'
 const LS_PROGRESS = 'rsl-react-progress'
 const LS_UI = 'rsl-react-ui'
 const LS_AUTH = 'rsl-react-auth'
+const LS_EDITOR_DRAFTS = 'rsl-react-editor-drafts'
 const EDITOR_EMAILS = (import.meta.env.VITE_EDITOR_EMAILS as string | undefined)
   ?.split(',')
   .map((v) => v.trim().toLowerCase())
   .filter(Boolean) || []
+
+type EditorDraft = {
+  quickSource: string
+  quickEnglish: string
+  quickJapanese: string
+  quickBuild: string
+  quickNotes: string
+  quickTokens: string
+  quickInsertMode: 'afterCurrent' | 'end'
+  editLabel: string
+  editSource: string
+  editEnglish: string
+  editJapanese: string
+  editBuild: string
+  editNotes: string
+  editTokens: string
+  vocabToken: string
+  vocabEnglish: string
+  vocabJapanese: string
+  vocabOrigin: string
+  vocabGender: '' | 'm' | 'f' | 'n'
+  vocabGrammarRefs: string
+  grammarId: string
+  grammarType: 'grammar' | 'conjugation' | 'pattern' | 'idiom'
+  grammarTitle: string
+  grammarBody: string
+  grammarTags: string
+  grammarTableRows: string
+}
 
 const dictKey = (language: string, token: string) => `${language}::${token}`
 const sentenceKey = (w: string, s: string, x: string) => `${w}::${s}::${x}`
@@ -141,6 +171,16 @@ function toIdSeed(text: string) {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 28)
+}
+
+function readEditorDraftMap() {
+  const raw = localStorage.getItem(LS_EDITOR_DRAFTS)
+  if (!raw) return {} as Record<string, EditorDraft>
+  try {
+    return JSON.parse(raw) as Record<string, EditorDraft>
+  } catch {
+    return {} as Record<string, EditorDraft>
+  }
 }
 
 export default function App() {
@@ -311,6 +351,71 @@ export default function App() {
   )
 
   useEffect(() => {
+    if (!work || !section || !sentence) return
+    const key = sentenceKey(work.id, section.id, sentence.id)
+    const allDrafts = readEditorDraftMap()
+    allDrafts[key] = {
+      quickSource,
+      quickEnglish,
+      quickJapanese,
+      quickBuild,
+      quickNotes,
+      quickTokens,
+      quickInsertMode,
+      editLabel,
+      editSource,
+      editEnglish,
+      editJapanese,
+      editBuild,
+      editNotes,
+      editTokens,
+      vocabToken,
+      vocabEnglish,
+      vocabJapanese,
+      vocabOrigin,
+      vocabGender,
+      vocabGrammarRefs,
+      grammarId,
+      grammarType,
+      grammarTitle,
+      grammarBody,
+      grammarTags,
+      grammarTableRows
+    }
+    localStorage.setItem(LS_EDITOR_DRAFTS, JSON.stringify(allDrafts))
+  }, [
+    work,
+    section,
+    sentence,
+    quickSource,
+    quickEnglish,
+    quickJapanese,
+    quickBuild,
+    quickNotes,
+    quickTokens,
+    quickInsertMode,
+    editLabel,
+    editSource,
+    editEnglish,
+    editJapanese,
+    editBuild,
+    editNotes,
+    editTokens,
+    vocabToken,
+    vocabEnglish,
+    vocabJapanese,
+    vocabOrigin,
+    vocabGender,
+    vocabGrammarRefs,
+    grammarId,
+    grammarType,
+    grammarTitle,
+    grammarBody,
+    grammarTags,
+    grammarTableRows
+  ])
+
+  useEffect(() => {
     if (!work) return
     if (!work.sections.some((s) => s.id === sectionId)) {
       setSectionId(work.sections[0]?.id || '')
@@ -325,7 +430,39 @@ export default function App() {
   }, [section, sentenceId])
 
   useEffect(() => {
-    if (!sentence) return
+    if (!work || !section || !sentence) return
+    const key = sentenceKey(work.id, section.id, sentence.id)
+    const draft = readEditorDraftMap()[key]
+    if (draft) {
+      setQuickSource(draft.quickSource || '')
+      setQuickEnglish(draft.quickEnglish || '')
+      setQuickJapanese(draft.quickJapanese || '')
+      setQuickBuild(draft.quickBuild || '')
+      setQuickNotes(draft.quickNotes || '')
+      setQuickTokens(draft.quickTokens || '')
+      setQuickInsertMode(draft.quickInsertMode || 'afterCurrent')
+      setEditLabel(draft.editLabel || '')
+      setEditSource(draft.editSource || '')
+      setEditEnglish(draft.editEnglish || '')
+      setEditJapanese(draft.editJapanese || '')
+      setEditBuild(draft.editBuild || '')
+      setEditNotes(draft.editNotes || '')
+      setEditTokens(draft.editTokens || '')
+      setVocabToken(draft.vocabToken || '')
+      setVocabEnglish(draft.vocabEnglish || '')
+      setVocabJapanese(draft.vocabJapanese || '')
+      setVocabOrigin(draft.vocabOrigin || '')
+      setVocabGender(normalizeGender(draft.vocabGender))
+      setVocabGrammarRefs(draft.vocabGrammarRefs || '')
+      setGrammarId(draft.grammarId || '')
+      setGrammarType(draft.grammarType || 'grammar')
+      setGrammarTitle(draft.grammarTitle || '')
+      setGrammarBody(draft.grammarBody || '')
+      setGrammarTags(draft.grammarTags || '')
+      setGrammarTableRows(draft.grammarTableRows || '')
+      return
+    }
+
     setEditLabel(sentence.label || '')
     setEditSource(sentence.source || '')
     setEditEnglish(sentence.english || '')
@@ -339,7 +476,7 @@ export default function App() {
     setGrammarBody('')
     setGrammarTags('')
     setGrammarTableRows('')
-  }, [sentence])
+  }, [work, section, sentence])
 
   const mergedTokens = useMemo(() => {
     if (!work || !sentence) return []
@@ -352,6 +489,22 @@ export default function App() {
       .filter((d) => d.sourceLanguage === work.sourceLanguage)
       .sort((a, b) => a.token.localeCompare(b.token))
   }, [dict, work])
+
+  const unresolvedDraftTokens = useMemo(() => {
+    if (!work) return []
+    const raw = (editTokens.trim() || editSource || '')
+      .split(editTokens.trim() ? '|' : /\s+/)
+      .map((v) => v.trim())
+      .filter(Boolean)
+    const unique = Array.from(new Set(raw))
+    return unique.filter((token) => {
+      const entry = dict[dictKey(work.sourceLanguage, token)]
+      if (!entry) return true
+      const hasMeaning = Boolean(entry.en?.trim() || entry.ja?.trim() || entry.origin?.trim())
+      const hasMeta = Boolean(entry.gender || (entry.grammarRefs && entry.grammarRefs.length > 0))
+      return !hasMeaning && !hasMeta
+    })
+  }, [work, dict, editTokens, editSource])
 
   const readCount = useMemo(() => {
     if (!work || !section) return 0
@@ -1014,6 +1167,29 @@ export default function App() {
                       </li>
                     ))}
                   </ol>
+                  <h3>本文の未登録候補</h3>
+                  {unresolvedDraftTokens.length === 0 ? (
+                    <p className="muted">未登録候補はありません。</p>
+                  ) : (
+                    <div className="row-actions">
+                      {unresolvedDraftTokens.map((token) => (
+                        <button
+                          key={`draft-token-${token}`}
+                          className="link-btn"
+                          onClick={() => {
+                            setVocabToken(token)
+                            setVocabEnglish('')
+                            setVocabJapanese('')
+                            setVocabOrigin('')
+                            setVocabGender('')
+                            setVocabGrammarRefs('')
+                          }}
+                        >
+                          {token}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="card">
