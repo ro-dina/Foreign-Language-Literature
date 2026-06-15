@@ -215,6 +215,10 @@ export default function App() {
   const [vocabOn, setVocabOn] = useState(true)
   const [genderOn, setGenderOn] = useState(false)
   const [paneWidth, setPaneWidth] = useState(280)
+  const [theme, setTheme] = useState<'light' | 'dark'>('light')
+  const [fontScale, setFontScale] = useState(1)
+  const [pinnedToken, setPinnedToken] = useState<number | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const [readSet, setReadSet] = useState<Set<string>>(new Set())
   const [weakSet, setWeakSet] = useState<Set<string>>(new Set())
@@ -269,9 +273,18 @@ export default function App() {
     const uiRaw = localStorage.getItem(LS_UI)
     if (!uiRaw) return
     try {
-      const ui = JSON.parse(uiRaw) as { paneWidth?: number; pageMode?: 'read' | 'edit' }
+      const ui = JSON.parse(uiRaw) as {
+        paneWidth?: number
+        pageMode?: 'read' | 'edit'
+        theme?: 'light' | 'dark'
+        fontScale?: number
+      }
       if (ui.paneWidth) setPaneWidth(ui.paneWidth)
       if (ui.pageMode === 'read' || ui.pageMode === 'edit') setPageMode(ui.pageMode)
+      if (ui.theme === 'light' || ui.theme === 'dark') setTheme(ui.theme)
+      if (typeof ui.fontScale === 'number' && ui.fontScale >= 0.8 && ui.fontScale <= 1.6) {
+        setFontScale(ui.fontScale)
+      }
     } catch {
       // ignore
     }
@@ -319,8 +332,41 @@ export default function App() {
   }, [readSet, weakSet])
 
   useEffect(() => {
-    localStorage.setItem(LS_UI, JSON.stringify({ paneWidth, pageMode }))
-  }, [paneWidth, pageMode])
+    localStorage.setItem(LS_UI, JSON.stringify({ paneWidth, pageMode, theme, fontScale }))
+  }, [paneWidth, pageMode, theme, fontScale])
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    document.documentElement.style.colorScheme = theme
+  }, [theme])
+
+  // 閲覧ページのキーボード操作: ←/→ で文移動、r で既読、b でブック表示
+  useEffect(() => {
+    if (pageMode !== 'read') return
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null
+      if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      if (e.key === 'ArrowRight' || e.key === 'j') {
+        e.preventDefault()
+        moveSentence(1)
+      } else if (e.key === 'ArrowLeft' || e.key === 'k') {
+        e.preventDefault()
+        moveSentence(-1)
+      } else if (e.key === 'r') {
+        toggleRead()
+      } else if (e.key === 'b') {
+        setBookMode((v) => !v)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
+  // 文が変わったら固定中のヒントを解除
+  useEffect(() => {
+    setPinnedToken(null)
+  }, [sentenceId])
 
   useEffect(() => {
     if (!authUser && pageMode === 'edit') {
@@ -950,44 +996,79 @@ export default function App() {
   const currentRead = readSet.has(sentenceKey(work.id, section.id, sentence.id))
 
   return (
-    <div className={`app page-${pageMode}`} style={{ ['--left-pane-width' as string]: `${paneWidth}px` }}>
+    <div
+      className={`app page-${pageMode}${sidebarOpen ? ' sidebar-open' : ''}`}
+      data-theme={theme}
+      style={{ ['--left-pane-width' as string]: `${paneWidth}px`, ['--read-scale' as string]: String(fontScale) }}
+    >
       <header className="topbar">
-        <div>
-          <h1>Reading Studio (React)</h1>
-          <p>閲覧と編集を分離した語学ノート</p>
+        <div className="topbar-title">
+          <button
+            className="icon-btn sidebar-toggle"
+            aria-label="メニュー"
+            onClick={() => setSidebarOpen((v) => !v)}
+          >
+            ☰
+          </button>
+          <div className="brand-mark" aria-hidden>R</div>
+          <div>
+            <h1>Reading Studio</h1>
+            <p>閲覧と編集を分離した語学ノート</p>
+          </div>
         </div>
         <div className="topbar-actions">
+          <div className="seg" role="tablist">
+            <button
+              className={pageMode === 'read' ? 'active' : ''}
+              onClick={() => setPageMode('read')}
+            >
+              閲覧
+            </button>
+            <button
+              className={pageMode === 'edit' ? 'active' : ''}
+              onClick={() => {
+                if (!canEdit) {
+                  setAuthMessage('編集ページは編集権限のあるログインが必要です')
+                  setSidebarOpen(true)
+                  return
+                }
+                setPageMode('edit')
+              }}
+            >
+              編集
+            </button>
+          </div>
+          {pageMode === 'read' && (
+            <button className="icon-btn" onClick={() => setBookMode((v) => !v)} title="表示モード切替">
+              {bookMode ? '📖' : '📑'}
+            </button>
+          )}
           <button
-            onClick={() => {
-              setPageMode('read')
-            }}
+            className="icon-btn"
+            onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+            title="テーマ切替"
+            aria-label="テーマ切替"
           >
-            閲覧ページ
+            {theme === 'dark' ? '☀️' : '🌙'}
           </button>
-          <button
-            onClick={() => {
-              if (!canEdit) {
-                setAuthMessage('編集ページは編集権限のあるログインが必要です')
-                return
-              }
-              setPageMode('edit')
-            }}
-          >
-            編集ページ
-          </button>
-          {pageMode === 'read' && <button onClick={() => setBookMode((v) => !v)}>表示: {bookMode ? 'Book' : 'Studio'}</button>}
         </div>
       </header>
 
       <main className="layout">
+        <div className="backdrop" onClick={() => setSidebarOpen(false)} />
         <aside className="panel side">
           <h2>アカウント</h2>
           {!authReady ? (
             <p className="muted">認証情報を確認中...</p>
           ) : authUser ? (
             <div className="auth-block">
-              <p className="muted">ログイン中: {authUser.email || authUser.id}</p>
-              <p className="muted">編集権限: {canEdit ? 'あり' : 'なし'}</p>
+              <p className="muted" style={{ marginTop: 0 }}>
+                {authUser.email || authUser.id}
+              </p>
+              <p style={{ margin: '0 0 0.5rem' }}>
+                編集権限:{' '}
+                <span className={`badge ${canEdit ? 'ok' : 'no'}`}>{canEdit ? 'あり' : 'なし'}</span>
+              </p>
               <button onClick={handleSignOut} disabled={authBusy}>
                 ログアウト
               </button>
@@ -1065,6 +1146,7 @@ export default function App() {
                   setWorkId(h.w.id)
                   setSectionId(h.s.id)
                   setSentenceId(h.x.id)
+                  setSidebarOpen(false)
                 }}
               >
                 [{h.w.title} / {h.s.title}] {h.x.label}
@@ -1080,7 +1162,10 @@ export default function App() {
                 <li
                   key={x.id}
                   className={`${x.id === sentence.id ? 'active' : ''} ${isRead ? 'read' : ''}`.trim()}
-                  onClick={() => setSentenceId(x.id)}
+                  onClick={() => {
+                    setSentenceId(x.id)
+                    setSidebarOpen(false)
+                  }}
                 >
                   {isRead ? '✓ ' : ''}
                   {x.label}
@@ -1109,47 +1194,68 @@ export default function App() {
               <div className="editor-grid">
                 <div className="card">
                   <h3>本文エディタ</h3>
-                  <input value={editLabel} onChange={(e) => setEditLabel(e.target.value)} placeholder="ラベル" />
-                  <textarea rows={3} value={editSource} onChange={(e) => setEditSource(e.target.value)} placeholder="本文" />
-                  <textarea rows={2} value={editEnglish} onChange={(e) => setEditEnglish(e.target.value)} placeholder="英語" />
+                  <p className="muted" style={{ marginTop: 0 }}>現在表示中の文を編集します。</p>
+                  <label className="field-label">ラベル（一覧での見出し）</label>
+                  <input value={editLabel} onChange={(e) => setEditLabel(e.target.value)} placeholder="未入力なら本文先頭から自動生成" />
+                  <label className="field-label">本文（必須）</label>
+                  <textarea rows={3} value={editSource} onChange={(e) => setEditSource(e.target.value)} placeholder="原文" />
+                  <label className="field-label">英語訳</label>
+                  <textarea rows={2} value={editEnglish} onChange={(e) => setEditEnglish(e.target.value)} placeholder="English" />
+                  <label className="field-label">日本語訳</label>
                   <textarea rows={2} value={editJapanese} onChange={(e) => setEditJapanese(e.target.value)} placeholder="日本語" />
-                  <textarea rows={2} value={editBuild} onChange={(e) => setEditBuild(e.target.value)} placeholder="最小構成(1行=1)" />
-                  <textarea rows={2} value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="備考(1行=1)" />
-                  <input value={editTokens} onChange={(e) => setEditTokens(e.target.value)} placeholder="tokens (|区切り)" />
+                  <label className="field-label">最小構成からの積み上げ（1行＝1ステップ）</label>
+                  <textarea rows={2} value={editBuild} onChange={(e) => setEditBuild(e.target.value)} placeholder={'Ich gehe.\nIch gehe nach Hause.'} />
+                  <label className="field-label">備考（1行＝1項目）</label>
+                  <textarea rows={2} value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="解説メモなど" />
+                  <label className="field-label">単語の区切り（| 区切り・空欄なら自動分割）</label>
+                  <input value={editTokens} onChange={(e) => setEditTokens(e.target.value)} placeholder="der | Hund | läuft" />
                   <button onClick={saveSentenceEdits}>本文編集を保存</button>
                 </div>
 
                 <div className="card">
                   <h3>新規文クイック追加</h3>
+                  <label className="field-label">追加位置</label>
                   <select value={quickInsertMode} onChange={(e) => setQuickInsertMode(e.target.value as 'afterCurrent' | 'end')}>
                     <option value="afterCurrent">追加位置: 今見ている文の次</option>
                     <option value="end">追加位置: 章の末尾</option>
                   </select>
-                  <textarea rows={3} value={quickSource} onChange={(e) => setQuickSource(e.target.value)} placeholder="本文" />
-                  <textarea rows={2} value={quickEnglish} onChange={(e) => setQuickEnglish(e.target.value)} placeholder="英語" />
+                  <label className="field-label">本文（必須）</label>
+                  <textarea rows={3} value={quickSource} onChange={(e) => setQuickSource(e.target.value)} placeholder="原文" />
+                  <label className="field-label">英語訳</label>
+                  <textarea rows={2} value={quickEnglish} onChange={(e) => setQuickEnglish(e.target.value)} placeholder="English" />
+                  <label className="field-label">日本語訳</label>
                   <textarea rows={2} value={quickJapanese} onChange={(e) => setQuickJapanese(e.target.value)} placeholder="日本語" />
-                  <textarea rows={2} value={quickBuild} onChange={(e) => setQuickBuild(e.target.value)} placeholder="最小構成(1行=1)" />
-                  <textarea rows={2} value={quickNotes} onChange={(e) => setQuickNotes(e.target.value)} placeholder="備考(1行=1)" />
-                  <input value={quickTokens} onChange={(e) => setQuickTokens(e.target.value)} placeholder="tokens (|区切り)" />
+                  <label className="field-label">最小構成からの積み上げ（1行＝1ステップ）</label>
+                  <textarea rows={2} value={quickBuild} onChange={(e) => setQuickBuild(e.target.value)} placeholder="空欄なら本文をそのまま使用" />
+                  <label className="field-label">備考（1行＝1項目）</label>
+                  <textarea rows={2} value={quickNotes} onChange={(e) => setQuickNotes(e.target.value)} placeholder="解説メモなど" />
+                  <label className="field-label">単語の区切り（| 区切り・空欄なら自動分割）</label>
+                  <input value={quickTokens} onChange={(e) => setQuickTokens(e.target.value)} placeholder="der | Hund | läuft" />
                   <button onClick={addSentence}>追加</button>
                 </div>
 
                 <div className="card">
                   <h3>単語辞書エディタ</h3>
-                  <input value={vocabToken} onChange={(e) => setVocabToken(e.target.value)} placeholder="単語" />
+                  <label className="field-label">単語（必須）</label>
+                  <input value={vocabToken} onChange={(e) => setVocabToken(e.target.value)} placeholder="見出し語" />
+                  <label className="field-label">英語</label>
                   <input value={vocabEnglish} onChange={(e) => setVocabEnglish(e.target.value)} placeholder="English" />
+                  <label className="field-label">日本語</label>
                   <input value={vocabJapanese} onChange={(e) => setVocabJapanese(e.target.value)} placeholder="日本語" />
-                  <input value={vocabOrigin} onChange={(e) => setVocabOrigin(e.target.value)} placeholder="語源/メモ" />
+                  <label className="field-label">語源 / メモ</label>
+                  <input value={vocabOrigin} onChange={(e) => setVocabOrigin(e.target.value)} placeholder="語源・補足" />
+                  <label className="field-label">性</label>
                   <select value={vocabGender} onChange={(e) => setVocabGender(normalizeGender(e.target.value))}>
                     <option value="">性なし</option>
                     <option value="m">m</option>
                     <option value="f">f</option>
                     <option value="n">n</option>
                   </select>
+                  <label className="field-label">文法参照ID（, 区切り）</label>
                   <input
                     value={vocabGrammarRefs}
                     onChange={(e) => setVocabGrammarRefs(e.target.value)}
-                    placeholder="文法参照ID (,区切り)"
+                    placeholder="g-akkusativ, g-..."
                   />
                   <div className="row-actions">
                     <button onClick={saveVocabEntry}>単語を保存</button>
@@ -1194,21 +1300,28 @@ export default function App() {
 
                 <div className="card">
                   <h3>文法エディタ</h3>
-                  <input value={grammarId} onChange={(e) => setGrammarId(e.target.value)} placeholder="id (未入力で自動)" />
+                  <p className="muted" style={{ marginTop: 0 }}>この文に紐づく文法項目を追加・編集します。</p>
+                  <label className="field-label">ID（未入力ならタイトルから自動生成）</label>
+                  <input value={grammarId} onChange={(e) => setGrammarId(e.target.value)} placeholder="g-akkusativ" />
+                  <label className="field-label">種別</label>
                   <select value={grammarType} onChange={(e) => setGrammarType(e.target.value as 'grammar' | 'conjugation' | 'pattern' | 'idiom')}>
-                    <option value="grammar">grammar</option>
-                    <option value="conjugation">conjugation</option>
-                    <option value="pattern">pattern</option>
-                    <option value="idiom">idiom</option>
+                    <option value="grammar">grammar（文法）</option>
+                    <option value="conjugation">conjugation（活用）</option>
+                    <option value="pattern">pattern（構文）</option>
+                    <option value="idiom">idiom（熟語）</option>
                   </select>
-                  <input value={grammarTitle} onChange={(e) => setGrammarTitle(e.target.value)} placeholder="タイトル" />
-                  <textarea rows={3} value={grammarBody} onChange={(e) => setGrammarBody(e.target.value)} placeholder="説明" />
-                  <input value={grammarTags} onChange={(e) => setGrammarTags(e.target.value)} placeholder="タグ (,区切り)" />
+                  <label className="field-label">タイトル（必須）</label>
+                  <input value={grammarTitle} onChange={(e) => setGrammarTitle(e.target.value)} placeholder="4格（対格）" />
+                  <label className="field-label">説明</label>
+                  <textarea rows={3} value={grammarBody} onChange={(e) => setGrammarBody(e.target.value)} placeholder="解説文" />
+                  <label className="field-label">タグ（, 区切り）</label>
+                  <input value={grammarTags} onChange={(e) => setGrammarTags(e.target.value)} placeholder="格変化, 名詞" />
+                  <label className="field-label">表（1行＝1レコード・列は | 区切り）</label>
                   <textarea
                     rows={3}
                     value={grammarTableRows}
                     onChange={(e) => setGrammarTableRows(e.target.value)}
-                    placeholder="表(1行=1レコード, 列は | 区切り)"
+                    placeholder={'格 | 男性 | 女性\n主格 | der | die'}
                   />
                   <div className="row-actions">
                     <button onClick={saveGrammarItem}>文法を保存</button>
@@ -1233,13 +1346,52 @@ export default function App() {
             <>
               <div className="row">
                 <h2>{sentence.label}</h2>
-                <div className="row-actions">
-                  <button onClick={() => moveSentence(-1)}>前の文</button>
-                  <button onClick={() => moveSentence(1)}>次の文</button>
-                  <button onClick={toggleRead}>既読: {currentRead ? 'ON' : 'OFF'}</button>
-                  <button onClick={() => setHintsOn((v) => !v)}>語彙ヒント: {hintsOn ? 'ON' : 'OFF'}</button>
-                  <button onClick={() => setVocabOn((v) => !v)}>単語表: {vocabOn ? 'ON' : 'OFF'}</button>
-                  <button onClick={() => setGenderOn((v) => !v)}>性カラー: {genderOn ? 'ON' : 'OFF'}</button>
+                <div className="row-actions toolbar">
+                  <button className="nav-btn" onClick={() => moveSentence(-1)} title="前の文 (←)">
+                    ← 前
+                  </button>
+                  <button className="nav-btn" onClick={() => moveSentence(1)} title="次の文 (→)">
+                    次 →
+                  </button>
+                  <button
+                    className={`toggle ${currentRead ? 'is-on' : ''}`}
+                    onClick={toggleRead}
+                    title="既読 (r)"
+                  >
+                    <span className="dot" />既読
+                  </button>
+                  <button
+                    className={`toggle ${hintsOn ? 'is-on' : ''}`}
+                    onClick={() => setHintsOn((v) => !v)}
+                  >
+                    <span className="dot" />語彙ヒント
+                  </button>
+                  <button
+                    className={`toggle ${vocabOn ? 'is-on' : ''}`}
+                    onClick={() => setVocabOn((v) => !v)}
+                  >
+                    <span className="dot" />単語表
+                  </button>
+                  <button
+                    className={`toggle ${genderOn ? 'is-on' : ''}`}
+                    onClick={() => setGenderOn((v) => !v)}
+                  >
+                    <span className="dot" />性カラー
+                  </button>
+                  <button
+                    className="nav-btn"
+                    onClick={() => setFontScale((v) => Math.max(0.8, Math.round((v - 0.1) * 10) / 10))}
+                    title="文字を小さく"
+                  >
+                    A−
+                  </button>
+                  <button
+                    className="nav-btn"
+                    onClick={() => setFontScale((v) => Math.min(1.6, Math.round((v + 0.1) * 10) / 10))}
+                    title="文字を大きく"
+                  >
+                    A＋
+                  </button>
                 </div>
               </div>
 
@@ -1248,9 +1400,37 @@ export default function App() {
                   <h3>章情報</h3>
                 </div>
                 <p>{section.description || '章解説は未入力です'}</p>
-                <p className="muted">
-                  進捗: {readCount}/{section.sentences.length} 既読 / 苦手単語 {weakSet.size}
-                </p>
+                <div className="progress-head">
+                  <span>既読の進捗</span>
+                  <span>
+                    {readCount}/{section.sentences.length}（
+                    {Math.round((readCount / Math.max(1, section.sentences.length)) * 100)}%）
+                  </span>
+                </div>
+                <div className="progress">
+                  <div
+                    className="progress-bar"
+                    style={{ width: `${(readCount / Math.max(1, section.sentences.length)) * 100}%` }}
+                  />
+                </div>
+                <div className="chips">
+                  <span className="chip">文 {section.sentences.length}</span>
+                  <span className="chip">既読 {readCount}</span>
+                  <span className="chip">苦手単語 {weakSet.size}</span>
+                </div>
+                {genderOn && (
+                  <div className="legend">
+                    <span className="legend-item">
+                      <span className="legend-swatch gender-m" style={{ background: 'currentColor' }} />男性 (m)
+                    </span>
+                    <span className="legend-item">
+                      <span className="legend-swatch gender-f" style={{ background: 'currentColor' }} />女性 (f)
+                    </span>
+                    <span className="legend-item">
+                      <span className="legend-swatch gender-n" style={{ background: 'currentColor' }} />中性 (n)
+                    </span>
+                  </div>
+                )}
               </div>
 
               {bookMode ? (
@@ -1272,23 +1452,38 @@ export default function App() {
                     <p className="source">
                       {mergedTokens.map((t, i) => {
                         const weak = weakSet.has(dictKey(work.sourceLanguage, t.text))
+                        const pinned = pinnedToken === i
                         return (
-                          <span key={i} className={`token ${genderOn ? `gender-${t.gender || 'x'}` : ''} ${weak ? 'weak-token' : ''}`}>
+                          <span
+                            key={i}
+                            className={`token ${genderOn ? `gender-${t.gender || 'x'}` : ''} ${weak ? 'weak-token' : ''} ${
+                              pinned ? 'pinned' : ''
+                            }`}
+                            onClick={() => setPinnedToken((cur) => (cur === i ? null : i))}
+                          >
                             {t.text}{' '}
-                            {hintsOn && (
+                            {(hintsOn || pinned) && (
                               <span className="hint">
-                                EN: {t.en || '-'} / JA: {t.ja || '-'}
+                                <span className="hint-row">EN: {t.en || '-'}</span>
+                                <span className="hint-row">JA: {t.ja || '-'}</span>
+                                {t.origin && <span className="hint-row muted">{t.origin}</span>}
                                 {!!t.grammarRefs?.length && (
-                                  <>
-                                    <br />
-                                    G:{' '}
+                                  <span className="hint-row">
+                                    文法:{' '}
                                     {t.grammarRefs.map((ref, refIdx) => (
-                                      <button key={`${t.text}-${ref}`} className="link-btn" onClick={() => jumpToGrammar(ref)}>
+                                      <button
+                                        key={`${t.text}-${ref}`}
+                                        className="link-btn"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          jumpToGrammar(ref)
+                                        }}
+                                      >
                                         {ref}
                                         {refIdx < t.grammarRefs.length - 1 ? ',' : ''}
                                       </button>
                                     ))}
-                                  </>
+                                  </span>
                                 )}
                               </span>
                             )}
@@ -1311,7 +1506,7 @@ export default function App() {
 
                   <div className="card">
                     <h3>最小構成からの積み上げ</h3>
-                    <ol>
+                    <ol className="buildup">
                       {sentence.buildUp.map((s, idx) => (
                         <li key={idx}>{idx === 0 ? s : diffBuildStep(sentence.buildUp[idx - 1], s)}</li>
                       ))}
@@ -1336,9 +1531,10 @@ export default function App() {
                         {sentence.grammar.map((g) => (
                           <div key={g.id} className="grammar-item" id={g.id}>
                             <p>
-                              <strong>{g.title}</strong> <span className="muted">({g.id})</span>
+                              <strong>{g.title}</strong>
+                              {g.type && <span className="type-pill">{g.type}</span>}{' '}
+                              <span className="muted">({g.id})</span>
                             </p>
-                            {g.type && <p className="muted">type: {g.type}</p>}
                             {g.tags && g.tags.length > 0 && <p className="muted">tags: {g.tags.join(', ')}</p>}
                             {g.body && <p>{g.body}</p>}
                             {g.tableRows && g.tableRows.length > 0 && (

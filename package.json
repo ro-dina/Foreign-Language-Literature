@@ -1,4 +1,10 @@
 {
+  "scripts": {
+    "dev": "npm run dev --prefix foreign-language-literature",
+    "build": "npm run build --prefix foreign-language-literature",
+    "preview": "npm run preview --prefix foreign-language-literature",
+    "lint": "npm run lint --prefix foreign-language-literature"
+  },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.1",
     "tailwindcss": "^4.2.1"
