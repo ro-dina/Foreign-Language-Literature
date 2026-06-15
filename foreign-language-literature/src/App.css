@@ -426,8 +426,11 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   border: 1px solid transparent;
 }
 .book-item:hover { background: var(--card-2); border-color: var(--line); }
-.book-item .source { font-size: calc(1.02rem * var(--read-scale)); line-height: 1.9; }
+.book-item.active { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+.book-item .source { font-size: calc(1.02rem * var(--read-scale)); line-height: 1.9; margin: 0; }
+.book-item .book-en { margin: 0.15rem 0 0; font-size: calc(0.96rem * var(--read-scale)); color: var(--ink); line-height: 1.7; }
 .book-item .muted { margin-top: 0.15rem; }
+.book-read { color: var(--accent); font-weight: 700; margin-right: 0.4rem; }
 
 .muted { color: var(--ink-soft); font-size: 0.9rem; }
 .empty { padding: 2rem; }

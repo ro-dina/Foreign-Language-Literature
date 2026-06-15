@@ -219,6 +219,9 @@ export default function App() {
   const [fontScale, setFontScale] = useState(1)
   const [pinnedToken, setPinnedToken] = useState<number | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [bookShowSource, setBookShowSource] = useState(true)
+  const [bookShowEnglish, setBookShowEnglish] = useState(false)
+  const [bookShowJapanese, setBookShowJapanese] = useState(true)
 
   const [readSet, setReadSet] = useState<Set<string>>(new Set())
   const [weakSet, setWeakSet] = useState<Set<string>>(new Set())
@@ -278,6 +281,9 @@ export default function App() {
         pageMode?: 'read' | 'edit'
         theme?: 'light' | 'dark'
         fontScale?: number
+        bookShowSource?: boolean
+        bookShowEnglish?: boolean
+        bookShowJapanese?: boolean
       }
       if (ui.paneWidth) setPaneWidth(ui.paneWidth)
       if (ui.pageMode === 'read' || ui.pageMode === 'edit') setPageMode(ui.pageMode)
@@ -285,6 +291,9 @@ export default function App() {
       if (typeof ui.fontScale === 'number' && ui.fontScale >= 0.8 && ui.fontScale <= 1.6) {
         setFontScale(ui.fontScale)
       }
+      if (typeof ui.bookShowSource === 'boolean') setBookShowSource(ui.bookShowSource)
+      if (typeof ui.bookShowEnglish === 'boolean') setBookShowEnglish(ui.bookShowEnglish)
+      if (typeof ui.bookShowJapanese === 'boolean') setBookShowJapanese(ui.bookShowJapanese)
     } catch {
       // ignore
     }
@@ -332,8 +341,19 @@ export default function App() {
   }, [readSet, weakSet])
 
   useEffect(() => {
-    localStorage.setItem(LS_UI, JSON.stringify({ paneWidth, pageMode, theme, fontScale }))
-  }, [paneWidth, pageMode, theme, fontScale])
+    localStorage.setItem(
+      LS_UI,
+      JSON.stringify({
+        paneWidth,
+        pageMode,
+        theme,
+        fontScale,
+        bookShowSource,
+        bookShowEnglish,
+        bookShowJapanese
+      })
+    )
+  }, [paneWidth, pageMode, theme, fontScale, bookShowSource, bookShowEnglish, bookShowJapanese])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -1435,15 +1455,57 @@ export default function App() {
 
               {bookMode ? (
                 <div className="card">
-                  <h3>Book View</h3>
-                  <ol className="book-list">
-                    {section.sentences.map((x) => (
-                      <li key={x.id} className="book-item" onClick={() => setSentenceId(x.id)}>
-                        <p className="source">{x.source}</p>
-                        <p className="muted">{x.japanese}</p>
-                      </li>
-                    ))}
-                  </ol>
+                  <div className="row">
+                    <h3>Book View</h3>
+                    <div className="row-actions toolbar">
+                      <button
+                        className={`toggle ${bookShowSource ? 'is-on' : ''}`}
+                        onClick={() => setBookShowSource((v) => !v)}
+                        title="原文の表示切替"
+                      >
+                        <span className="dot" />原文
+                      </button>
+                      <button
+                        className={`toggle ${bookShowEnglish ? 'is-on' : ''}`}
+                        onClick={() => setBookShowEnglish((v) => !v)}
+                        title="英語訳の表示切替"
+                      >
+                        <span className="dot" />英語
+                      </button>
+                      <button
+                        className={`toggle ${bookShowJapanese ? 'is-on' : ''}`}
+                        onClick={() => setBookShowJapanese((v) => !v)}
+                        title="日本語訳の表示切替"
+                      >
+                        <span className="dot" />日本語
+                      </button>
+                    </div>
+                  </div>
+                  {!bookShowSource && !bookShowEnglish && !bookShowJapanese ? (
+                    <p className="muted">表示する言語を1つ以上選んでください。</p>
+                  ) : (
+                    <ol className="book-list">
+                      {section.sentences.map((x) => {
+                        const isRead = readSet.has(sentenceKey(work.id, section.id, x.id))
+                        return (
+                          <li
+                            key={x.id}
+                            className={`book-item${x.id === sentence.id ? ' active' : ''}`}
+                            onClick={() => setSentenceId(x.id)}
+                          >
+                            {bookShowSource && (
+                              <p className="source">
+                                {isRead && <span className="book-read">✓</span>}
+                                {x.source}
+                              </p>
+                            )}
+                            {bookShowEnglish && <p className="book-en">{x.english || '—'}</p>}
+                            {bookShowJapanese && <p className="muted">{x.japanese || '—'}</p>}
+                          </li>
+                        )
+                      })}
+                    </ol>
+                  )}
                 </div>
               ) : (
                 <>
