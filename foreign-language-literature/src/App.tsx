@@ -577,6 +577,22 @@ export default function App() {
     return section.sentences.filter((s) => readSet.has(sentenceKey(work.id, section.id, s.id))).length
   }, [readSet, work, section])
 
+  const workStats = useMemo(
+    () =>
+      data.map((w) => {
+        let total = 0
+        let read = 0
+        w.sections.forEach((s) =>
+          s.sentences.forEach((x) => {
+            total += 1
+            if (readSet.has(sentenceKey(w.id, s.id, x.id))) read += 1
+          })
+        )
+        return { work: w, total, read }
+      }),
+    [data, readSet]
+  )
+
   const sentencePointers = useMemo(() => {
     const p: Array<{ w: string; s: string; x: string }> = []
     data.forEach((w) => w.sections.forEach((s) => s.sentences.forEach((x) => p.push({ w: w.id, s: s.id, x: x.id }))))
@@ -936,6 +952,53 @@ export default function App() {
     }
   }
 
+  const exportBackup = () => {
+    const payload = {
+      app: 'reading-studio',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      data,
+      dict,
+      progress: { read: Array.from(readSet), weak: Array.from(weakSet) }
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `reading-studio-backup-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const importBackup = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result)) as {
+          data?: Work[]
+          dict?: unknown
+          progress?: { read?: string[]; weak?: string[] }
+        }
+        if (!Array.isArray(parsed.data) || parsed.data.length === 0) {
+          window.alert('バックアップファイルに作品データが見つかりません')
+          return
+        }
+        if (!window.confirm('現在のデータをバックアップの内容で置き換えますか？\n（この操作は元に戻せません）')) return
+        setData(parsed.data)
+        setDict(hydrateDictRecord(parsed.dict))
+        setReadSet(new Set(parsed.progress?.read || []))
+        setWeakSet(new Set(parsed.progress?.weak || []))
+        const w = parsed.data[0]
+        setWorkId(w.id)
+        setSectionId(w.sections[0]?.id || '')
+        setSentenceId(w.sections[0]?.sentences[0]?.id || '')
+      } catch {
+        window.alert('バックアップファイルの読み込みに失敗しました（JSON形式が不正です）')
+      }
+    }
+    reader.readAsText(file)
+  }
+
   const handleSignIn = async () => {
     if (!email.trim() || !password) {
       setAuthMessage('メールとパスワードを入力してください')
@@ -1121,23 +1184,36 @@ export default function App() {
           )}
           {authMessage && <p className="muted">{authMessage}</p>}
 
-          <h2>作品</h2>
-          <select
-            value={work.id}
-            onChange={(e) => {
-              const w = data.find((x) => x.id === e.target.value)
-              if (!w) return
-              setWorkId(w.id)
-              setSectionId(w.sections[0]?.id || '')
-              setSentenceId(w.sections[0]?.sentences[0]?.id || '')
-            }}
-          >
-            {data.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.title}
-              </option>
-            ))}
-          </select>
+          <h2>作品ライブラリ</h2>
+          <div className="work-list">
+            {workStats.map(({ work: w, total, read }) => {
+              const pct = total > 0 ? Math.round((read / total) * 100) : 0
+              return (
+                <button
+                  key={w.id}
+                  className={`work-card${w.id === work.id ? ' active' : ''}`}
+                  onClick={() => {
+                    if (w.id === work.id) return
+                    setWorkId(w.id)
+                    setSectionId(w.sections[0]?.id || '')
+                    setSentenceId(w.sections[0]?.sentences[0]?.id || '')
+                  }}
+                >
+                  <span className="work-card-title">{w.title}</span>
+                  <span className="work-card-meta">
+                    <span className="lang-chip">{w.sourceLanguage}</span>
+                    <span>{w.sections.length}章 / {total}文</span>
+                  </span>
+                  <span className="work-card-progress">
+                    <span className="progress">
+                      <span className="progress-bar" style={{ width: `${pct}%` }} />
+                    </span>
+                    <span className="work-card-pct">{pct}%</span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
 
           <h2>章</h2>
           <select
@@ -1194,6 +1270,23 @@ export default function App() {
             })}
           </ol>
 
+          <h2>バックアップ</h2>
+          <div className="row-actions">
+            <button onClick={exportBackup}>書き出し</button>
+            <label className="import-btn">
+              読み込み
+              <input
+                type="file"
+                accept="application/json,.json"
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f) importBackup(f)
+                  e.target.value = ''
+                }}
+              />
+            </label>
+          </div>
+          <p className="muted">作品・辞書・進捗をJSONで保存/復元できます。</p>
         </aside>
 
         <div className="splitter" onMouseDown={() => setDragging(true)} />

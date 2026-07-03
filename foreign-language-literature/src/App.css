@@ -265,6 +265,89 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 
+/* ---------- Work library ---------- */
+.work-list { display: grid; gap: 0.45rem; }
+.work-card {
+  display: grid;
+  gap: 0.35rem;
+  width: 100%;
+  margin: 0;
+  text-align: left;
+  padding: 0.6rem 0.7rem;
+  border-radius: 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-weight: 500;
+}
+.work-card:hover { border-color: var(--accent); }
+.work-card.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.work-card-title {
+  font-weight: 700;
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+.work-card.active .work-card-title { color: var(--accent-ink); }
+.work-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+}
+.lang-chip {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  font-weight: 700;
+  font-size: 0.72rem;
+}
+.work-card-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.work-card-progress .progress { display: block; flex: 1; height: 6px; }
+.work-card-progress .progress-bar { display: block; }
+.work-card-pct {
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  min-width: 2.4em;
+  text-align: right;
+}
+
+/* import button (file input wrapped in label) */
+.import-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  margin: 0;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.import-btn input[type='file'] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  margin: 0;
+}
+
 /* ---------- Sentence / search lists ---------- */
 .sentence-list { margin: 0; padding: 0; list-style: none; }
 .sentence-list li {
