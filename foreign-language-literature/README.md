@@ -1,73 +1,122 @@
-# React + TypeScript + Vite
+# Reading Studio
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+外国語文学を原文で読み、翻訳・構文・文法・語彙を学ぶための個人用読書室と教材エディタです。
 
-Currently, two official plugins are available:
+## 開発
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## React Compiler
-
-The React Compiler is currently not compatible with SWC. See [this issue](https://github.com/vitejs/vite-plugin-react/issues/428) for tracking the progress.
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```sh
+npm ci
+npm run dev
+npm run build
+npm run lint
+npm test
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Node.js 22.18以降（検証環境: Node.js 24.10）を推奨します。VercelではこのディレクトリをRoot Directory、ViteをPreset、`npm run build` / `dist`を指定します。
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Phase 1 の構成と調査結果
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- React 19、TypeScript、Vite 7。専用のルーター・状態管理ライブラリ・UIコンポーネントライブラリはありません。
+- ページ切替・作品選択・認証・教材更新は `src/App.tsx` のReact stateで管理します。
+- CSSは `src/App.css`、Tailwindの読み込みは `src/index.css`。書体は端末内のセリフ体とサンセリフ体を使用し、外部フォントへの通信はありません。
+- 教材の階層は `Work → Section → Sentence`。文に翻訳・tokens・buildUp・notes・grammarを持ちます。既存の `src/models.ts` と `src/seedData.ts` は変更していません。
+- 教材・辞書・進捗・下書きはlocalStorageへ保存します。Supabase REST APIを利用するのは認証です。Prisma/RLSファイルはありますが、教材のDB同期は未実装です。
+- 既存のテストスイートはなかったため、原文表示の回帰テストと任意実行のブラウザテストを追加しました。
+- 元の狭幅画面は左メニューをドロワーにする対応でした。今回、中央を優先し右の解説も狭幅ではドロワー／下部シートに切り替えました。
+
+## 読書の使い方
+
+- **Reading**: 章全体の原文を表示します。切替時は翻訳と解説を閉じ、文の選択で解説を開きます。翻訳は表示設定から追加できます。
+- **Study**: 選択中の一文に集中します。「本ビューで章全体を読む」で章全体へ切り替えられます。
+- デスクトップではライブラリ・原文・解説の3領域。左右を閉じると原文の領域を広げられます。ライブラリの幅は境界のドラッグ、または境界にフォーカスして左右キーで調整できます。
+- 1100px未満ではライブラリと解説が引き出し式、768px未満では解説が下部シートになります。閉じるボタン・Escapeで閉じられ、キーボードフォーカスはパネル内を巡回します。
+- **表示設定**: 原文・英語・日本語、対訳の並列表示、単語ヒント、性カラー、文字サイズ。暗い配色は上部の「夜の配色」（スマートフォンでは「配色」）から切り替えます。
+- **解説タブ**: 翻訳／構文／文法／語彙／備考。構文の順序・内容は教材通りで、前段階から追加された語を黄色で表示します。文法事項と語彙カードは展開できます。
+- 単語を押すと語彙タブ、文法参照を押すと該当項目を開きます。注釈がない語も原文から欠落しません。
+- ハイライトの意味: 薄い緑と左線＝選択文、薄い緑＝選択語、点線の下線＝苦手語、青＝男性・赤紫＝女性・緑＝中性（性カラーを有効にした場合）。
+- ショートカット: `←`/`k` 前の文、`→`/`j` 次の文、`r` 既読、`b` 本ビュー。入力欄・ボタン・タブ等を操作中は発動しません。タブは左右キー・Home・Endで移動できます。
+- 作品・章・文の選択と読書スクロール位置を再読込後にも引き継ぎます。
+
+## 教材編集
+
+「教材編集」は既存の編集権限チェックを通ったアカウントのみ利用できます。ログインとサインアップはアカウントのダイアログにまとめています。
+
+- 原文／翻訳／構文／語彙／文法／備考／新規文をタブで選択します。
+- 原文・翻訳・構文・備考の「変更を保存」は、現在文の編集内容をまとめて保存します。語彙と文法にはそれぞれの保存操作があります。
+- 下書きは入力ごとにこのブラウザへ自動保存します。「未反映の変更あり」は教材本体へ未反映の内容があることを示します。異なる文へ移っても下書きを混ぜず、戻ったときに復元します。
+- 下書きはクラウド同期されません。別ブラウザ・別端末へは引き継がれず、ブラウザの保存データを消すと失われます。
+- 保存失敗や必須入力エラーを画面内に表示します。保存・削除の既存の確認ダイアログも維持しています。
+- 新規文は「今見ている文の直後」または「この章の末尾」へ追加できます。IDと見出しは自動生成します。
+- 単語辞書は言語ごとに共通で、登録済み一覧・検索・未登録候補から入力できます。辞書を削除しても文に個別登録された注釈は保持します。
+- 文法の種別（文法・活用・構文・慣用表現）、タグ、参照ID、表を編集できます。表は1行1レコード、列は `|` 区切りです。
+- ライブラリ下部のバックアップから、既存のJSON形式で教材・辞書・進捗を書き出し・読み込みできます。下書きと認証情報はバックアップには含みません。
+
+## 認証と環境変数
+
+`.env.example` を参照してください。Viteの環境変数はビルド時に読み込まれます。
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `VITE_EDITOR_EMAILS`（従来のカンマ区切りの編集者メール設定）
+
+フロントの編集権限チェックはUIの制御です。将来、教材をSupabaseへ保存する場合は既存のRLSでサーバー側の書き込みも制限してください。今回、認証APIのエンドポイント・リクエスト形式・既存のセッションキーは変更していません。
+
+## 保存形式の互換性
+
+既存キー `rsl-react-data`、`rsl-react-dict`、`rsl-react-progress`、`rsl-react-ui`、`rsl-react-auth`、`rsl-react-editor-drafts` を引き続き使用します。データ移行は不要です。読書位置用に `rsl-react-position`、スクロール用に `rsl-react-scroll` を追加しています。
+
+以前の下書き保存には、初期表示や文切替時に別の文／空のフォームを保存する競合がありました。現在はフォームの所有する文のキーを確認し、文が切り替わったレンダーで復元してから保存します。過去に上書き済みの下書き自体を復元する機能ではありません。
+
+## 変更ファイル
+
+| ファイル | 役割 |
+| --- | --- |
+| `src/App.tsx` | 画面構成、既存操作との接続、表示設定、認証メニュー、読書位置 |
+| `src/App.css` | 文字組み、3領域、配色、ドロワー、編集画面、フォーカス |
+| `src/components/Library.tsx` | 作品・章・文、検索、進捗、バックアップ |
+| `src/components/Reader.tsx` | 原文、文選択、翻訳、前後移動、本ビュー |
+| `src/components/StudyPanel.tsx` | 翻訳、構文ステップ、文法、語彙、備考 |
+| `src/components/BuildDiff.tsx` | 既存の構文差分表示を分離 |
+| `src/components/EditorPage.tsx` | 編集タブ、フォーム、保存状態 |
+| `src/components/Tabs.tsx` | キーボード対応の共通タブ |
+| `src/components/Dialog.tsx` | アカウントダイアログとフォーカス復帰 |
+| `src/hooks/useEditorDraft.ts` | 既存形式の下書き保存・復元 |
+| `src/hooks/useDrawerFocus.ts` | 狭幅パネルのフォーカス管理 |
+| `src/lib/reading.ts` | 元の文字列を保持する注釈表示、辞書の反映 |
+| `index.html` | 日本語ページ情報・タイトル |
+| `package.json` | テストコマンド追加（依存関係の追加なし） |
+| `tests/reading.test.mjs` | 原文・辞書反映の回帰テスト |
+| `scripts/ui-smoke.mjs` | 隔離ブラウザでの操作テスト |
+| `README.md` | 構成・操作・検証手順 |
+
+## ブラウザ検証
+
+アプリのランタイム依存は追加していません。ブラウザ検証を再実行する場合のみ、Google Chromeと一時フォルダのPlaywrightを使用します。
+
+```sh
+npm install --prefix /tmp/reading-studio-qa --no-save --package-lock=false @playwright/test
+npm run dev -- --host 127.0.0.1 --port 5173
 ```
+
+別ターミナルで、このディレクトリから実行:
+
+```sh
+PLAYWRIGHT_MODULE=/tmp/reading-studio-qa/node_modules/@playwright/test/index.mjs npm run test:ui
+```
+
+検証内容:
+
+- 作品・章・前後文、キーボード操作、作品横断検索
+- 原文の欠落がないこと、英語／日本語の独立切替、Reading／Study／本ビュー
+- 構文の全ステップと差分、文法・語彙、既読・苦手フラグ
+- 認証のモック応答を使ったログインと再読込後のセッション維持
+- 文ごとの下書き切替・再読込復元、本文・訳・辞書・文法の保存、注釈保持、新規文追加
+- 1440px／834px／390px／320pxの読書・解説・編集表示、暗い配色、横方向にはみ出さないこと
+- テスト専用30文の章で、テーマ変更・再読込後も読書位置を維持すること
+- 閲覧操作で教材データ自体が書き換わらないこと、ブラウザの未処理例外がないこと
+
+スクリーンショットは `/tmp/reading-studio-phase1` に出力します。実際のSupabaseアカウントやDBは変更しません。実サービスへのログイン・メール認証、Safariの実機表示は別途確認が必要です。
+
+## 今後の改善候補
+
+教材のSupabase同期、共同編集時の競合処理、教材ごとの共有権限、複数語義を持つ辞書、Safari／iPadでの実機確認を次の段階で検討できます。

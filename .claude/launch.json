@@ -7,6 +7,13 @@
       "runtimeArgs": ["run", "dev", "--prefix", "foreign-language-literature"],
       "port": 5173,
       "autoPort": true
+    },
+    {
+      "name": "otaroom-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "/Users/isao/Documents/programming/otaroom"],
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }
