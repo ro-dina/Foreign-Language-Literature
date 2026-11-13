@@ -1,5 +1,8 @@
 import type { DictEntry, Sentence, Work } from '../models'
 import { dictKey, mergeToken, sourceParts } from '../lib/reading'
+import type { QuickTranslationMode } from '../lib/quickTranslation'
+import { useQuickTranslation } from '../hooks/useQuickTranslation'
+import { QuickTranslation } from './QuickTranslation'
 
 type Props = {
   work: Work
@@ -12,6 +15,7 @@ type Props = {
   sourceOn: boolean
   comparison: boolean
   hintsOn: boolean
+  quickTranslation: QuickTranslationMode
   genderOn: boolean
   dict: Record<string, DictEntry>
   weakSet: Set<string>
@@ -26,6 +30,7 @@ type Props = {
   canNext: boolean
 }
 export function Reader(p: Props) {
+  const quick = useQuickTranslation(p.quickTranslation)
   const currentIndex = p.section.sentences.findIndex(
     (x) => x.id === p.sentence.id
   )
@@ -104,19 +109,68 @@ export function Reader(p: Props) {
                   }}
                 >
                   {parts.map((part, i) =>
-                    part.token && p.hintsOn ? (
+                    part.token &&
+                    (p.hintsOn || p.quickTranslation !== 'off') ? (
                       <button
                         key={i}
-                        className={`word ${p.genderOn ? `gender-${part.token.gender || 'x'}` : ''} ${p.weakSet.has(dictKey(p.work.sourceLanguage, part.text)) ? 'weak-word' : ''} ${p.selectedToken === part.text && selected ? 'selected-word' : ''}`}
-                        title={
-                          [part.token.en, part.token.ja]
-                            .filter(Boolean)
-                            .join(' / ') || '語彙を確認'
+                        type="button"
+                        className={`word ${p.quickTranslation !== 'off' ? 'quick-word' : ''} ${p.genderOn ? `gender-${part.token.gender || 'x'}` : ''} ${p.weakSet.has(dictKey(p.work.sourceLanguage, part.text)) ? 'weak-word' : ''} ${p.selectedToken === part.text && selected ? 'selected-word' : ''}`}
+                        aria-describedby={
+                          quick.target?.anchor.id === `${quick.id}-${x.id}-${i}`
+                            ? quick.id
+                            : undefined
                         }
+                        id={`${quick.id}-${x.id}-${i}`}
+                        aria-expanded={
+                          quick.target?.interaction === 'touch' &&
+                          quick.target.anchor.id === `${quick.id}-${x.id}-${i}`
+                            ? true
+                            : undefined
+                        }
+                        onPointerDown={(e) => {
+                          quick.pointerType.current = e.pointerType
+                        }}
+                        onPointerEnter={(e) => {
+                          if (e.pointerType === 'mouse')
+                            quick.schedule({
+                              anchor: e.currentTarget,
+                              token: part.token!,
+                              sentenceId: x.id,
+                              interaction: 'hover'
+                            })
+                        }}
+                        onPointerLeave={() => quick.leave()}
+                        onFocus={(e) => {
+                          if (
+                            e.currentTarget.matches(':focus-visible') &&
+                            quick.pointerType.current !== 'touch'
+                          )
+                            quick.schedule({
+                              anchor: e.currentTarget,
+                              token: part.token!,
+                              sentenceId: x.id,
+                              interaction: 'focus'
+                            })
+                        }}
+                        onBlur={() => quick.leave(true)}
                         onClick={(e) => {
                           e.stopPropagation()
                           p.onSentence(x.id)
-                          p.onToken(part.text)
+                          if (
+                            e.detail !== 0 &&
+                            quick.pointerType.current !== 'mouse' &&
+                            quick.pointerType.current !== 'keyboard' &&
+                            p.quickTranslation !== 'off'
+                          ) {
+                            quick.tap({
+                              anchor: e.currentTarget,
+                              token: part.token!,
+                              sentenceId: x.id
+                            })
+                          } else {
+                            quick.dismiss()
+                            p.onToken(part.text)
+                          }
                         }}
                       >
                         {part.text}
@@ -189,6 +243,23 @@ export function Reader(p: Props) {
         ← → 文を移動 <span>R 既読</span>
         <span>B 本ビュー</span>
       </p>
+      {quick.target && (
+        <QuickTranslation
+          target={quick.target}
+          mode={p.quickTranslation}
+          id={quick.id}
+          popupRef={quick.popupRef}
+          onDismiss={quick.dismiss}
+          onEnter={quick.cancelHide}
+          onLeave={() => quick.leave()}
+          onDetails={() => {
+            const target = quick.target!
+            quick.dismiss()
+            p.onSentence(target.sentenceId)
+            p.onToken(target.token.text)
+          }}
+        />
+      )}
     </section>
   )
 }

@@ -7,6 +7,10 @@ import { StudyPanel, type StudyTab } from './components/StudyPanel'
 import { EditorPage, type EditorTab } from './components/EditorPage'
 import { Dialog } from './components/Dialog'
 import { useDrawerFocus } from './hooks/useDrawerFocus'
+import {
+  quickTranslationMode,
+  type QuickTranslationMode
+} from './lib/quickTranslation'
 import './App.css'
 import type { DictEntry, GrammarItem, Sentence, Work } from './models'
 import { seedData } from './seedData'
@@ -105,6 +109,7 @@ const savedUI = readLocal<{
   hintsOn?: boolean
   genderOn?: boolean
   comparison?: boolean
+  quickTranslation?: QuickTranslationMode
 }>(LS_UI, {})
 const savedPosition = readLocal<{ w?: string; s?: string; x?: string }>(
   'rsl-react-position',
@@ -144,6 +149,9 @@ export default function App() {
   const [pageMode, setPageMode] = useState<'read' | 'edit'>('read')
   const [bookMode, setBookMode] = useState(savedUI.bookMode ?? false)
   const [hintsOn, setHintsOn] = useState(savedUI.hintsOn ?? true)
+  const [quickTranslation, setQuickTranslation] = useState(() =>
+    quickTranslationMode(savedUI.quickTranslation)
+  )
   const [genderOn, setGenderOn] = useState(savedUI.genderOn ?? false)
   const [paneWidth, setPaneWidth] = useState(
     Math.max(230, Math.min(savedUI.paneWidth || 260, 360))
@@ -294,6 +302,7 @@ export default function App() {
           readMode,
           bookMode,
           hintsOn,
+          quickTranslation,
           genderOn,
           comparison
         })
@@ -312,6 +321,7 @@ export default function App() {
     readMode,
     bookMode,
     hintsOn,
+    quickTranslation,
     genderOn,
     comparison
   ])
@@ -1454,6 +1464,25 @@ export default function App() {
                         />
                         単語のヒント
                       </label>
+                      <div className="quick-translation-setting">
+                        <label htmlFor="quick-translation-mode">
+                          単語クイック翻訳
+                        </label>
+                        <select
+                          id="quick-translation-mode"
+                          value={quickTranslation}
+                          onChange={(e) =>
+                            setQuickTranslation(
+                              quickTranslationMode(e.target.value)
+                            )
+                          }
+                        >
+                          <option value="off">OFF</option>
+                          <option value="ja">日本語</option>
+                          <option value="en">英語</option>
+                          <option value="both">日本語＋英語</option>
+                        </select>
+                      </div>
                       <label>
                         <input
                           type="checkbox"
@@ -1511,6 +1540,7 @@ export default function App() {
                 </div>
               </div>
               <Reader
+                key={`${work.id}::${section.id}::${readMode}::${bookMode}::${readMode === 'study' && !bookMode ? sentence.id : ''}::${bookShowSource}::${quickTranslation}`}
                 work={work}
                 section={section}
                 sentence={sentence}
@@ -1521,6 +1551,7 @@ export default function App() {
                 sourceOn={bookShowSource}
                 comparison={comparison}
                 hintsOn={hintsOn}
+                quickTranslation={quickTranslation}
                 genderOn={genderOn}
                 dict={dict}
                 weakSet={weakSet}
