@@ -3,11 +3,13 @@ import { useEffect, useRef, type ReactNode } from 'react'
 export function Dialog({
   title,
   onClose,
-  children
+  children,
+  wide = false
 }: {
   title: string
   onClose: () => void
   children: ReactNode
+  wide?: boolean
 }) {
   const ref = useRef<HTMLDialogElement>(null)
   useEffect(() => {
@@ -22,7 +24,7 @@ export function Dialog({
   return (
     <dialog
       ref={ref}
-      className="account-dialog"
+      className={`account-dialog ${wide ? 'wide-dialog' : ''}`}
       aria-label={title}
       onCancel={onClose}
       onClick={(e) => {

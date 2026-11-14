@@ -259,6 +259,18 @@ export function StudyPanel(p: {
                     <dl>
                       <dt>English</dt>
                       <dd>{t.en || '未登録'}</dd>
+                      {t.lemma && (
+                        <>
+                          <dt>辞書形</dt>
+                          <dd>{t.lemma}</dd>
+                        </>
+                      )}
+                      {t.partOfSpeech && (
+                        <>
+                          <dt>品詞</dt>
+                          <dd>{t.partOfSpeech}</dd>
+                        </>
+                      )}
                       <dt>日本語</dt>
                       <dd>{t.ja || '未登録'}</dd>
                       <dt>性</dt>

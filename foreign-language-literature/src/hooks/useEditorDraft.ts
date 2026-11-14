@@ -24,6 +24,8 @@ export type EditorDraft = {
   vocabOrigin: string
   vocabGender: '' | 'm' | 'f' | 'n'
   vocabGrammarRefs: string
+  vocabLemma: string
+  vocabPartOfSpeech: string
   grammarId: string
   grammarType: 'grammar' | 'conjugation' | 'pattern' | 'idiom'
   grammarTitle: string
@@ -60,6 +62,8 @@ export function initialDraft(sentence?: Sentence): EditorDraft {
     vocabOrigin: '',
     vocabGender: '',
     vocabGrammarRefs: '',
+    vocabLemma: '',
+    vocabPartOfSpeech: '',
     grammarId: '',
     grammarType: 'grammar',
     grammarTitle: '',
@@ -83,14 +87,16 @@ function readDraft(key: string, sentence?: Sentence): EditorDraft {
   }
 }
 
-export function useEditorDraft(key: string, sentence?: Sentence) {
+export function useEditorDraft(key: string, sentence?: Sentence, reset = 0) {
   const [state, setState] = useState(() => ({
     key,
+    reset,
     values: readDraft(key, sentence)
   }))
   const [error, setError] = useState('')
   // Reinitialize before rendering the new sentence. Effects never save the previous sentence under the new key.
-  if (state.key !== key) setState({ key, values: readDraft(key, sentence) })
+  if (state.key !== key || state.reset !== reset)
+    setState({ key, reset, values: readDraft(key, sentence) })
   useEffect(() => {
     if (!key || state.key !== key) return
     try {

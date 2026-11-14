@@ -7,6 +7,8 @@ export type Token = {
   origin?: string
   gender?: '' | 'm' | 'f' | 'n'
   grammarRefs?: string[]
+  lemma?: string
+  partOfSpeech?: string
 }
 
 export type GrammarItem = {
@@ -41,6 +43,7 @@ export type Work = {
   id: string
   title: string
   sourceLanguage: string
+  author?: string
   sections: Section[]
 }
 
@@ -52,4 +55,6 @@ export type DictEntry = {
   origin: string
   gender: '' | 'm' | 'f' | 'n'
   grammarRefs: string[]
+  lemma?: string
+  partOfSpeech?: string
 }

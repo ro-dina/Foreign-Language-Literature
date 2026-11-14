@@ -13,6 +13,8 @@ type Props = {
   onClose: () => void
   onExport: () => void
   onImport: (file: File) => void
+  onManage?: () => void
+  onCloud?: () => void
 }
 export function Library(p: Props) {
   const section =
@@ -33,6 +35,12 @@ export function Library(p: Props) {
           閉じる
         </button>
       </div>
+      {(p.onManage || p.onCloud) && (
+        <div className="library-management row-actions">
+          {p.onManage && <button onClick={p.onManage}>作品・章を管理</button>}
+          {p.onCloud && <button onClick={p.onCloud}>保存と共有</button>}
+        </div>
+      )}
       <label className="search-field">
         <span className="sr-only">作品横断検索</span>
         <input

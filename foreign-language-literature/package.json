@@ -10,7 +10,9 @@
     "test": "node --test tests/*.test.mjs",
     "test:ui": "node scripts/ui-smoke.mjs",
     "test:quick-ui": "node scripts/quick-translation-smoke.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:workflow": "node scripts/workflow-smoke.mjs",
+    "test:material-db": "node scripts/material-db-smoke.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.1",

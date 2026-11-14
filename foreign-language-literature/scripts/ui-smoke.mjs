@@ -186,7 +186,6 @@ try {
     ),
     initialData[0].sections[0].sentences[0].tokens
   )
-  await chooseTab('翻訳')
   await page.getByLabel('日本語訳', { exact: true }).fill('保存する訳')
   await page.getByRole('button', { name: '変更を保存', exact: true }).click()
   assert.equal(

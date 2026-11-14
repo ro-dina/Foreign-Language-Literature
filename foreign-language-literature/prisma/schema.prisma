@@ -172,3 +172,25 @@ model EditorAccount {
   @@map("editor_accounts")
   @@schema("public")
 }
+
+// Additive models for the reviewed SQL. SQL owns CHECKs, triggers, grants and RLS.
+// This file does not apply DDL. Do not use prisma db push as a deployment step.
+model ReadingStudioDraft {
+  ownerId   String   @id @map("owner_id") @db.Uuid
+  payload   Json     @db.JsonB
+  revision  BigInt   @default(1)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("reading_studio_drafts")
+  @@schema("public")
+}
+
+model ReadingStudioPublication {
+  ownerId   String   @id @map("owner_id") @db.Uuid
+  payload   Json     @db.JsonB
+  revision  BigInt   @default(1)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("reading_studio_publications")
+  @@schema("public")
+}

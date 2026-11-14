@@ -1,0 +1,2 @@
+// Superseded review reference. The two models now live in prisma/schema.prisma.
+// Do not append this file or use db push. Deploy only the approved SQL.

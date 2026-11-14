@@ -11,16 +11,27 @@ export function mergeToken(
   dict: Record<string, DictEntry>
 ): Token {
   const entry = dict[dictKey(language, token.text)]
+  const lemma = entry?.lemma || token.lemma || ''
+  const base = lemma ? dict[dictKey(language, lemma)] : undefined
+  const meaning = (field: 'en' | 'ja' | 'origin') =>
+    entry?.[field] || base?.[field] || (entry?.[field] ?? token[field] ?? '')
   return {
     ...entry,
     ...token,
     text: token.text,
-    en: entry?.en ?? token.en ?? '',
-    ja: entry?.ja ?? token.ja ?? '',
-    origin: entry?.origin ?? token.origin ?? '',
-    gender: entry?.gender ?? token.gender ?? '',
+    en: meaning('en'),
+    ja: meaning('ja'),
+    origin: meaning('origin'),
+    lemma,
+    partOfSpeech:
+      entry?.partOfSpeech || base?.partOfSpeech || token.partOfSpeech || '',
+    gender: entry?.gender || base?.gender || token.gender || '',
     grammarRefs: [
-      ...new Set([...(token.grammarRefs || []), ...(entry?.grammarRefs || [])])
+      ...new Set([
+        ...(token.grammarRefs || []),
+        ...(entry?.grammarRefs || []),
+        ...(base?.grammarRefs || [])
+      ])
     ]
   }
 }
